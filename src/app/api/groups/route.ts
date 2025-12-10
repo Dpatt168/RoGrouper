@@ -115,32 +115,48 @@ async function checkBotRolePermissions(
   roleId: number
 ): Promise<boolean> {
   try {
-    // Fetch role permissions for the group
+    // Fetch role permissions for the group - requires authentication to see all permissions
     const response = await fetch(
       `https://groups.roblox.com/v1/groups/${groupId}/roles/permissions`,
       {
-        headers: { Accept: "application/json" },
+        headers: { 
+          Accept: "application/json",
+          Cookie: `.ROBLOSECURITY=${BOT_COOKIE}`,
+        },
       }
     );
 
     if (!response.ok) {
-      console.error(`Failed to fetch role permissions for group ${groupId}`);
+      console.error(`[Bot Permissions] Failed to fetch role permissions for group ${groupId}, status: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[Bot Permissions] Error response: ${errorText}`);
       return false;
     }
 
     const data = await response.json();
+    console.log(`[Bot Permissions] Group ${groupId} - Raw API response structure:`, JSON.stringify(data, null, 2).substring(0, 500));
+    
     const roles: RolePermissions[] = data.data || [];
+    console.log(`[Bot Permissions] Group ${groupId} - Found ${roles.length} roles with permissions`);
 
     // Find the bot's role and check if it has changeRank permission
     const botRolePermissions = roles.find((r) => r.role.id === roleId);
     if (!botRolePermissions) {
+      console.error(`[Bot Permissions] Group ${groupId} - Bot role ID ${roleId} not found in permissions response`);
+      console.log(`[Bot Permissions] Available role IDs: ${roles.map(r => `${r.role.id} (${r.role.name})`).join(', ')}`);
       return false;
     }
 
+    console.log(`[Bot Permissions] Group ${groupId} - Bot role "${botRolePermissions.role.name}" permissions:`, 
+      JSON.stringify(botRolePermissions.permissions?.groupMembershipPermissions, null, 2));
+
     // Check if the role has "Manage lower-ranked member ranks" permission (changeRank)
-    return botRolePermissions.permissions.groupMembershipPermissions.changeRank === true;
+    const hasChangeRank = botRolePermissions.permissions?.groupMembershipPermissions?.changeRank === true;
+    console.log(`[Bot Permissions] Group ${groupId} - changeRank permission: ${hasChangeRank}`);
+    
+    return hasChangeRank;
   } catch (error) {
-    console.error(`Error checking role permissions for group ${groupId}:`, error);
+    console.error(`[Bot Permissions] Error checking role permissions for group ${groupId}:`, error);
     return false;
   }
 }
@@ -191,6 +207,7 @@ async function fetchBotGroupStatus(
     // Create a map of group ID to bot's role info in that group
     const botGroupMap = new Map<number, { roleId: number; rank: number; roleName: string }>();
     botGroups.forEach((bg) => {
+      console.log(`[Bot Status] Bot is in group ${bg.group.id} with role: ${bg.role.name} (ID: ${bg.role.id}, Rank: ${bg.role.rank})`);
       botGroupMap.set(bg.group.id, { roleId: bg.role.id, rank: bg.role.rank, roleName: bg.role.name });
     });
 
@@ -202,9 +219,11 @@ async function fetchBotGroupStatus(
         
         if (!botRole) {
           // Bot is not in this group
+          console.log(`[Bot Status] Bot is NOT in group ${groupId}`);
           return { groupId, status: "not_in_group" as BotStatus, rank: 0, roleName: "" };
         }
 
+        console.log(`[Bot Status] Checking permissions for group ${groupId}, bot role ID: ${botRole.roleId}`);
         // Check if the bot's role has the "changeRank" permission
         const hasChangeRankPermission = await checkBotRolePermissions(groupId, botRole.roleId);
         
