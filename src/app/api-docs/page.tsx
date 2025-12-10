@@ -517,7 +517,7 @@ export default function ApiDocsPage() {
       <div className="mt-8 p-4 bg-muted/50 rounded-lg">
         <h3 className="font-medium mb-2">Base URL</h3>
         <code className="text-sm bg-background px-2 py-1 rounded">
-          {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}
+          {typeof window !== "undefined" ? window.location.origin : "http://bloxmesh.com"}
         </code>
       </div>
     </div>

@@ -483,7 +483,7 @@ export function ApiDocsPage() {
         </CardHeader>
         <CardContent className="pt-0">
           <code className="text-sm bg-muted px-2 py-1 rounded">
-            {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}
+            {typeof window !== "undefined" ? window.location.origin : "http://bloxmesh.com"}
           </code>
         </CardContent>
       </Card>
