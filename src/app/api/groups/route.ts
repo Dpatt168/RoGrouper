@@ -68,6 +68,83 @@ interface BotGroupMembership {
   role: { id: number; name: string; rank: number };
 }
 
+interface RolePermissions {
+  groupId: number;
+  role: {
+    id: number;
+    name: string;
+    rank: number;
+  };
+  permissions: {
+    groupPostsPermissions: {
+      viewWall: boolean;
+      postToWall: boolean;
+      deleteFromWall: boolean;
+      viewStatus: boolean;
+      postToStatus: boolean;
+    };
+    groupMembershipPermissions: {
+      changeRank: boolean;
+      inviteMembers: boolean;
+      removeMembers: boolean;
+    };
+    groupManagementPermissions: {
+      manageRelationships: boolean;
+      manageClan: boolean;
+      viewAuditLogs: boolean;
+    };
+    groupEconomyPermissions: {
+      spendGroupFunds: boolean;
+      advertiseGroup: boolean;
+      createItems: boolean;
+      manageItems: boolean;
+      addGroupPlaces: boolean;
+      manageGroupGames: boolean;
+      viewGroupPayouts: boolean;
+      viewAnalytics: boolean;
+    };
+    groupOpenCloudPermissions: {
+      useCloudAuthentication: boolean;
+      administerCloudAuthentication: boolean;
+    };
+  };
+}
+
+async function checkBotRolePermissions(
+  groupId: number,
+  roleId: number
+): Promise<boolean> {
+  try {
+    // Fetch role permissions for the group
+    const response = await fetch(
+      `https://groups.roblox.com/v1/groups/${groupId}/roles/permissions`,
+      {
+        headers: { Accept: "application/json" },
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`Failed to fetch role permissions for group ${groupId}`);
+      return false;
+    }
+
+    const data = await response.json();
+    const roles: RolePermissions[] = data.data || [];
+
+    // Find the bot's role and check if it has changeRank permission
+    const botRolePermissions = roles.find((r) => r.role.id === roleId);
+    if (!botRolePermissions) {
+      return false;
+    }
+
+    // Check if the role has "Manage lower-ranked member ranks" permission (changeRank)
+    return botRolePermissions.permissions.groupMembershipPermissions.changeRank === true;
+  } catch (error) {
+    console.error(`Error checking role permissions for group ${groupId}:`, error);
+    return false;
+  }
+}
+
 async function fetchBotGroupStatus(
   groupIds: number[]
 ): Promise<Map<number, { status: BotStatus; rank: number; roleName: string }>> {
@@ -111,32 +188,39 @@ async function fetchBotGroupStatus(
     const botGroupsData = await groupsResponse.json();
     const botGroups: BotGroupMembership[] = botGroupsData.data || [];
 
-    // Create a map of group ID to bot's role in that group
-    const botGroupMap = new Map<number, { rank: number; roleName: string }>();
+    // Create a map of group ID to bot's role info in that group
+    const botGroupMap = new Map<number, { roleId: number; rank: number; roleName: string }>();
     botGroups.forEach((bg) => {
-      botGroupMap.set(bg.group.id, { rank: bg.role.rank, roleName: bg.role.name });
+      botGroupMap.set(bg.group.id, { roleId: bg.role.id, rank: bg.role.rank, roleName: bg.role.name });
     });
 
     // Determine status for each requested group
-    for (const groupId of groupIds) {
-      const botRole = botGroupMap.get(groupId);
-      
-      if (!botRole) {
-        // Bot is not in this group
-        statusMap.set(groupId, { status: "not_in_group", rank: 0, roleName: "" });
-      } else if (botRole.rank < 255) {
-        // Bot is in group but doesn't have high enough rank to manage roles
-        // Rank 255 is owner, but typically rank >= 254 or having ChangeRank permission is needed
-        // We'll check if rank is high enough (usually needs to be above target ranks)
-        statusMap.set(groupId, { 
-          status: botRole.rank >= 254 ? "ready" : "needs_rank", 
-          rank: botRole.rank, 
-          roleName: botRole.roleName 
-        });
-      } else {
-        statusMap.set(groupId, { status: "ready", rank: botRole.rank, roleName: botRole.roleName });
-      }
-    }
+    // Check permissions in parallel for all groups where bot is a member
+    const permissionChecks = await Promise.all(
+      groupIds.map(async (groupId) => {
+        const botRole = botGroupMap.get(groupId);
+        
+        if (!botRole) {
+          // Bot is not in this group
+          return { groupId, status: "not_in_group" as BotStatus, rank: 0, roleName: "" };
+        }
+
+        // Check if the bot's role has the "changeRank" permission
+        const hasChangeRankPermission = await checkBotRolePermissions(groupId, botRole.roleId);
+        
+        return {
+          groupId,
+          status: hasChangeRankPermission ? "ready" as BotStatus : "needs_rank" as BotStatus,
+          rank: botRole.rank,
+          roleName: botRole.roleName,
+        };
+      })
+    );
+
+    // Populate the status map
+    permissionChecks.forEach(({ groupId, status, rank, roleName }) => {
+      statusMap.set(groupId, { status, rank, roleName });
+    });
   } catch (error) {
     console.error("Error fetching bot group status:", error);
     groupIds.forEach((id) => statusMap.set(id, { status: "not_in_group", rank: 0, roleName: "" }));

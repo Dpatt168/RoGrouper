@@ -240,10 +240,10 @@ export function GroupCard({ group, role, botStatus = "not_in_group", botRank = 0
                 <>
                   <div className="flex items-center gap-2 text-xs text-amber-600">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    <span>Bot needs higher rank</span>
+                    <span>Bot needs rank permission</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Please set the rank of <strong>{botInfo?.name || "the bot"}</strong> to have rank management permissions.
+                    Please give <strong>{botInfo?.name || "the bot"}</strong> a role with &quot;Manage lower-ranked member ranks&quot; permission.
                     {botRoleName && (
                       <span className="block mt-1">Current role: {botRoleName} (Rank {botRank})</span>
                     )}
@@ -260,7 +260,7 @@ export function GroupCard({ group, role, botStatus = "not_in_group", botRank = 0
                     ) : (
                       <CheckCircle className="h-3 w-3 mr-1.5" />
                     )}
-                    Verify Rank
+                    Verify Permission
                   </Button>
                 </>
               )}
