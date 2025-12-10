@@ -125,7 +125,15 @@ export function GroupsGrid() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((item) => (
-          <GroupCard key={item.group.id} group={item.group} role={item.role} />
+          <GroupCard 
+            key={item.group.id} 
+            group={item.group} 
+            role={item.role}
+            botStatus={item.botStatus}
+            botRank={item.botRank}
+            botRoleName={item.botRoleName}
+            onRefresh={fetchGroups}
+          />
         ))}
       </div>
     </div>

@@ -1,10 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { promises as fs } from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), "data");
+import { getDocument, setDocument, COLLECTIONS } from "@/lib/firebase";
 
 export interface RoleSync {
   id: string;
@@ -36,30 +33,16 @@ interface OrganizationsData {
   organizations: Organization[];
 }
 
-async function ensureDataDir() {
-  try {
-    await fs.access(DATA_DIR);
-  } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
-}
-
 async function getOrganizationsData(userId: string): Promise<OrganizationsData> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `organizations-${userId}.json`);
-  
-  try {
-    const data = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return { organizations: [] };
-  }
+  return getDocument<OrganizationsData>(
+    COLLECTIONS.ORGANIZATIONS,
+    userId,
+    { organizations: [] }
+  );
 }
 
 async function saveOrganizationsData(userId: string, data: OrganizationsData) {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `organizations-${userId}.json`);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  await setDocument(COLLECTIONS.ORGANIZATIONS, userId, data);
 }
 
 export async function GET() {

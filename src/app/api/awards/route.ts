@@ -1,10 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { promises as fs } from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), "data");
+import { getDocument, setDocument, COLLECTIONS } from "@/lib/firebase";
 
 export interface Award {
   id: string;
@@ -39,30 +36,18 @@ interface AwardsData {
   userAwards: UserAward[];
 }
 
-async function ensureDataDir() {
-  try {
-    await fs.access(DATA_DIR);
-  } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
-}
+const AWARDS_DOC_ID = "global";
 
 async function getAwardsData(): Promise<AwardsData> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, "awards.json");
-  
-  try {
-    const data = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return { awards: [], userAwards: [] };
-  }
+  return getDocument<AwardsData>(
+    COLLECTIONS.AWARDS,
+    AWARDS_DOC_ID,
+    { awards: [], userAwards: [] }
+  );
 }
 
 async function saveAwardsData(data: AwardsData) {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, "awards.json");
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  await setDocument(COLLECTIONS.AWARDS, AWARDS_DOC_ID, data);
 }
 
 export async function GET(request: Request) {

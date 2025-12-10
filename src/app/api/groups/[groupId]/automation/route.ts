@@ -1,10 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { promises as fs } from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), "data");
+import { getDocument, setDocument, COLLECTIONS } from "@/lib/firebase";
 
 interface Rule {
   id: string;
@@ -58,30 +55,16 @@ interface GroupAutomation {
   subGroups?: SubGroup[];
 }
 
-async function ensureDataDir() {
-  try {
-    await fs.access(DATA_DIR);
-  } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
-}
-
 async function getAutomationData(groupId: string): Promise<GroupAutomation> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `group-${groupId}.json`);
-  
-  try {
-    const data = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return { rules: [], userPoints: [], suspensions: [] };
-  }
+  return getDocument<GroupAutomation>(
+    COLLECTIONS.GROUP_AUTOMATION,
+    groupId,
+    { rules: [], userPoints: [], suspensions: [] }
+  );
 }
 
 async function saveAutomationData(groupId: string, data: GroupAutomation) {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `group-${groupId}.json`);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  await setDocument(COLLECTIONS.GROUP_AUTOMATION, groupId, data);
 }
 
 export async function GET(

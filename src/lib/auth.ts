@@ -19,7 +19,7 @@ function RobloxProvider(): OAuthConfig<RobloxProfile> {
     authorization: {
       url: "https://apis.roblox.com/oauth/v1/authorize",
       params: {
-        scope: "openid profile group:read group:write",
+        scope: "openid profile",
         response_type: "code",
       },
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,8 +13,11 @@ import {
   ChevronRight,
   Settings,
   HelpCircle,
-  FileCode
+  FileCode,
+  Shield
 } from "lucide-react";
+
+const ADMIN_USER_ID = "3857050833";
 
 interface SidebarProps {
   activeTab: string;
@@ -36,6 +40,9 @@ const bottomItems = [
 
 export function Sidebar({ activeTab, onTabChange, collapsed, onCollapsedChange }: SidebarProps) {
   const { data: session } = useSession();
+  const router = useRouter();
+  
+  const isAdmin = session?.user?.robloxId === ADMIN_USER_ID;
 
   if (!session) return null;
 
@@ -85,6 +92,23 @@ export function Sidebar({ activeTab, onTabChange, collapsed, onCollapsedChange }
 
         {/* Bottom navigation */}
         <div className="border-t py-4 px-2 space-y-1">
+          {/* Admin button - only visible to admin */}
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full justify-start gap-3 transition-all text-amber-600 hover:text-amber-700 hover:bg-amber-50",
+                collapsed ? "px-3" : "px-4"
+              )}
+              onClick={() => router.push("/admin")}
+            >
+              <Shield className="h-5 w-5 shrink-0" />
+              {!collapsed && (
+                <span className="truncate">Admin Panel</span>
+              )}
+            </Button>
+          )}
+          
           {bottomItems.map((item) => (
             <Button
               key={item.id}

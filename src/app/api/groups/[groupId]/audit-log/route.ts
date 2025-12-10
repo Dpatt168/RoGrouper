@@ -1,10 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { promises as fs } from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), "data");
+import { getDocument, setDocument, COLLECTIONS } from "@/lib/firebase";
 
 export type AuditAction = 
   | "role_change"
@@ -40,30 +37,16 @@ interface AuditLogData {
   discordWebhook?: string;
 }
 
-async function ensureDataDir() {
-  try {
-    await fs.access(DATA_DIR);
-  } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
-}
-
 async function getAuditLogData(groupId: string): Promise<AuditLogData> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `audit-${groupId}.json`);
-  
-  try {
-    const data = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return { entries: [] };
-  }
+  return getDocument<AuditLogData>(
+    COLLECTIONS.AUDIT_LOGS,
+    groupId,
+    { entries: [] }
+  );
 }
 
 async function saveAuditLogData(groupId: string, data: AuditLogData) {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `audit-${groupId}.json`);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  await setDocument(COLLECTIONS.AUDIT_LOGS, groupId, data);
 }
 
 function getActionDescription(entry: AuditLogEntry): string {

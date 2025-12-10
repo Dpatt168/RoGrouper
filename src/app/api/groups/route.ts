@@ -2,6 +2,10 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 
+const BOT_COOKIE = process.env.ROBLOX_BOT_TOKEN;
+
+export type BotStatus = "ready" | "not_in_group" | "needs_rank" | "pending";
+
 export interface RobloxGroup {
   group: {
     id: number;
@@ -21,6 +25,9 @@ export interface RobloxGroup {
     name: string;
     rank: number;
   };
+  botStatus?: BotStatus;
+  botRank?: number;
+  botRoleName?: string;
 }
 
 interface GroupIconData {
@@ -56,6 +63,88 @@ async function fetchGroupIcons(groupIds: number[]): Promise<Map<number, string>>
   return iconMap;
 }
 
+interface BotGroupMembership {
+  group: { id: number };
+  role: { id: number; name: string; rank: number };
+}
+
+async function fetchBotGroupStatus(
+  groupIds: number[]
+): Promise<Map<number, { status: BotStatus; rank: number; roleName: string }>> {
+  const statusMap = new Map<number, { status: BotStatus; rank: number; roleName: string }>();
+  
+  if (!BOT_COOKIE || groupIds.length === 0) {
+    // If no bot configured, mark all as not_in_group
+    groupIds.forEach((id) => statusMap.set(id, { status: "not_in_group", rank: 0, roleName: "" }));
+    return statusMap;
+  }
+
+  try {
+    // Get bot's user ID first
+    const authResponse = await fetch("https://users.roblox.com/v1/users/authenticated", {
+      headers: {
+        Cookie: `.ROBLOSECURITY=${BOT_COOKIE}`,
+      },
+    });
+
+    if (!authResponse.ok) {
+      groupIds.forEach((id) => statusMap.set(id, { status: "not_in_group", rank: 0, roleName: "" }));
+      return statusMap;
+    }
+
+    const botUser = await authResponse.json();
+    const botUserId = botUser.id;
+
+    // Get all groups the bot is in
+    const groupsResponse = await fetch(
+      `https://groups.roblox.com/v1/users/${botUserId}/groups/roles`,
+      {
+        headers: { Accept: "application/json" },
+      }
+    );
+
+    if (!groupsResponse.ok) {
+      groupIds.forEach((id) => statusMap.set(id, { status: "not_in_group", rank: 0, roleName: "" }));
+      return statusMap;
+    }
+
+    const botGroupsData = await groupsResponse.json();
+    const botGroups: BotGroupMembership[] = botGroupsData.data || [];
+
+    // Create a map of group ID to bot's role in that group
+    const botGroupMap = new Map<number, { rank: number; roleName: string }>();
+    botGroups.forEach((bg) => {
+      botGroupMap.set(bg.group.id, { rank: bg.role.rank, roleName: bg.role.name });
+    });
+
+    // Determine status for each requested group
+    for (const groupId of groupIds) {
+      const botRole = botGroupMap.get(groupId);
+      
+      if (!botRole) {
+        // Bot is not in this group
+        statusMap.set(groupId, { status: "not_in_group", rank: 0, roleName: "" });
+      } else if (botRole.rank < 255) {
+        // Bot is in group but doesn't have high enough rank to manage roles
+        // Rank 255 is owner, but typically rank >= 254 or having ChangeRank permission is needed
+        // We'll check if rank is high enough (usually needs to be above target ranks)
+        statusMap.set(groupId, { 
+          status: botRole.rank >= 254 ? "ready" : "needs_rank", 
+          rank: botRole.rank, 
+          roleName: botRole.roleName 
+        });
+      } else {
+        statusMap.set(groupId, { status: "ready", rank: botRole.rank, roleName: botRole.roleName });
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching bot group status:", error);
+    groupIds.forEach((id) => statusMap.set(id, { status: "not_in_group", rank: 0, roleName: "" }));
+  }
+
+  return statusMap;
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
 
@@ -84,20 +173,29 @@ export async function GET() {
     // Filter to only groups where user can manage roles (rank >= 254)
     const manageableGroups = groups.filter((g) => g.role.rank >= 254);
 
-    // Fetch icons for filtered groups
+    // Fetch icons and bot status for filtered groups
     const groupIds = manageableGroups.map((g) => g.group.id);
-    const iconMap = await fetchGroupIcons(groupIds);
+    const [iconMap, botStatusMap] = await Promise.all([
+      fetchGroupIcons(groupIds),
+      fetchBotGroupStatus(groupIds),
+    ]);
 
-    // Add icon URLs to groups
-    const groupsWithIcons = manageableGroups.map((g) => ({
-      ...g,
-      group: {
-        ...g.group,
-        iconUrl: iconMap.get(g.group.id) || null,
-      },
-    }));
+    // Add icon URLs and bot status to groups
+    const groupsWithData = manageableGroups.map((g) => {
+      const botInfo = botStatusMap.get(g.group.id);
+      return {
+        ...g,
+        group: {
+          ...g.group,
+          iconUrl: iconMap.get(g.group.id) || null,
+        },
+        botStatus: botInfo?.status || "not_in_group",
+        botRank: botInfo?.rank || 0,
+        botRoleName: botInfo?.roleName || "",
+      };
+    });
 
-    return NextResponse.json({ data: groupsWithIcons });
+    return NextResponse.json({ data: groupsWithData });
   } catch (error) {
     console.error("Error fetching groups:", error);
     return NextResponse.json(

@@ -1,11 +1,9 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { promises as fs } from "fs";
-import path from "path";
+import { getDocument, COLLECTIONS } from "@/lib/firebase";
 
 const BOT_COOKIE = process.env.ROBLOX_BOT_TOKEN;
-const DATA_DIR = path.join(process.cwd(), "data");
 
 // Helper to make Roblox API requests with bot cookie and XSRF token handling
 async function robloxBotRequest(
@@ -64,13 +62,11 @@ interface OrganizationsData {
 }
 
 async function getOrganizationsData(userId: string): Promise<OrganizationsData> {
-  const filePath = path.join(DATA_DIR, `organizations-${userId}.json`);
-  try {
-    const data = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return { organizations: [] };
-  }
+  return getDocument<OrganizationsData>(
+    COLLECTIONS.ORGANIZATIONS,
+    userId,
+    { organizations: [] }
+  );
 }
 
 async function applyRoleSyncs(
