@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RoGrouper - View Your Roblox Groups",
+  title: "Bloxmesh - View Your Roblox Groups",
   description: "Sign in with Roblox to view all your groups in one place",
 };
 

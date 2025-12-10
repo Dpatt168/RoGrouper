@@ -77,7 +77,7 @@ export function LandingPage() {
             </h1>
             
             <p className="mb-10 text-lg text-muted-foreground sm:text-xl max-w-2xl mx-auto">
-              RoGrouper is your all-in-one solution for managing Roblox groups. 
+              Bloxmesh is your all-in-one solution for managing Roblox groups. 
               Automate promotions, sync roles across organizations, and keep track of everything.
             </p>
             
@@ -135,7 +135,7 @@ export function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
             <div>
               <h2 className="text-3xl font-bold mb-6">
-                Why Choose RoGrouper?
+                Why Choose Bloxmesh?
               </h2>
               <p className="text-muted-foreground mb-8">
                 Built by group owners, for group owners. We understand the challenges 
@@ -174,7 +174,7 @@ export function LandingPage() {
             Ready to Get Started?
           </h2>
           <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-            Join thousands of group owners who trust RoGrouper to manage their communities.
+            Join thousands of group owners who trust Bloxmesh to manage their communities.
           </p>
           <Button 
             size="lg" 
@@ -190,7 +190,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="border-t py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} RoGrouper. Not affiliated with Roblox Corporation.</p>
+          <p>© {new Date().getFullYear()} Bloxmesh. Not affiliated with Roblox Corporation.</p>
         </div>
       </footer>
     </div>

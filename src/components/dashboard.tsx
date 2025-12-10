@@ -139,7 +139,7 @@ function HelpPage() {
       <div>
         <h1 className="text-3xl font-bold">Help & Support</h1>
         <p className="text-muted-foreground mt-1">
-          Get help with using RoGrouper.
+          Get help with using Bloxmesh.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -147,7 +147,7 @@ function HelpPage() {
           <CardHeader>
             <CardTitle>Getting Started</CardTitle>
             <CardDescription>
-              Learn the basics of RoGrouper
+              Learn the basics of Bloxmesh
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">

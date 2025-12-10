@@ -16,7 +16,7 @@ export function Navbar() {
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
             <span className="text-primary-foreground font-bold text-sm">RG</span>
           </div>
-          <span className="font-semibold text-xl">RoGrouper</span>
+          <span className="font-semibold text-xl">Bloxmesh</span>
         </div>
 
         <div className="flex items-center gap-3">

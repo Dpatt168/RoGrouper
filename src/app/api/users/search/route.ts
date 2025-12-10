@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       {
         headers: { 
           "Accept": "application/json",
-          "User-Agent": "RoGrouper/1.0",
+          "User-Agent": "Bloxmesh/1.0",
         },
       }
     );

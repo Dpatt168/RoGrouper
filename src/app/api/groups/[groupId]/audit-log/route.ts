@@ -135,7 +135,7 @@ async function sendDiscordWebhook(webhookUrl: string, entry: AuditLogEntry, grou
       ],
       timestamp: new Date(entry.timestamp).toISOString(),
       footer: {
-        text: groupName || "RoGrouper",
+        text: groupName || "Bloxmesh",
       },
     };
 

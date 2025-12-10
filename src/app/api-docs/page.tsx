@@ -469,7 +469,7 @@ export default function ApiDocsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">API Documentation</h1>
         <p className="text-muted-foreground">
-          Complete reference for the RoGrouper API endpoints. All endpoints require authentication via Roblox OAuth.
+          Complete reference for the Bloxmesh API endpoints. All endpoints require authentication via Roblox OAuth.
         </p>
       </div>
 

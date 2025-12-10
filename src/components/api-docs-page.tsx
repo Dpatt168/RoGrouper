@@ -433,7 +433,7 @@ export function ApiDocsPage() {
       <div>
         <h1 className="text-3xl font-bold">API Documentation</h1>
         <p className="text-muted-foreground mt-1">
-          Complete reference for the RoGrouper API endpoints.
+          Complete reference for the Bloxmesh API endpoints.
         </p>
       </div>
 
