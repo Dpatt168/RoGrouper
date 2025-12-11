@@ -17,7 +17,8 @@ import {
   Trash2,
   ExternalLink,
   Users,
-  ArrowLeft
+  ArrowLeft,
+  FolderOpen
 } from "lucide-react";
 
 const ADMIN_USER_ID = "3857050833";
@@ -143,10 +144,16 @@ export default function AdminPage() {
             <p className="text-muted-foreground">Manage bot join requests and captchas</p>
           </div>
         </div>
-        <Button onClick={fetchRequests} variant="outline" className="gap-2">
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => router.push("/admin/groups")} variant="outline" className="gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Manage Groups
+          </Button>
+          <Button onClick={fetchRequests} variant="outline" className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Card>

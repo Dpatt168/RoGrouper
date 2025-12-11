@@ -354,9 +354,12 @@ export function SubGroupsPanel({
   };
 
   const handleAssignUser = async (userId: number, username: string, overrideSubGroupId?: string | null) => {
+    // If overrideSubGroupId is explicitly passed (even as null), use it; otherwise use the selected assignSubGroupId
     const targetSubGroupId = overrideSubGroupId !== undefined ? overrideSubGroupId : assignSubGroupId;
     
-    if (!targetSubGroupId && targetSubGroupId !== null) {
+    // Allow null (for unassign) or a valid sub-group ID - only block empty string when no override was passed
+    // When overrideSubGroupId is passed as null, we want to unassign, so skip validation
+    if (overrideSubGroupId === undefined && targetSubGroupId === "") {
       toast.error("Please select a sub-group");
       return;
     }
@@ -619,7 +622,7 @@ export function SubGroupsPanel({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleAssignUser(user.userId, user.username)}
+                            onClick={() => handleAssignUser(user.userId, user.username, null)}
                             disabled={actionLoading}
                           >
                             <UserMinus className="h-4 w-4" />

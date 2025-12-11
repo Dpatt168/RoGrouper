@@ -64,7 +64,23 @@ async function getAutomationData(groupId: string): Promise<GroupAutomation> {
 }
 
 async function saveAutomationData(groupId: string, data: GroupAutomation) {
-  await setDocument(COLLECTIONS.GROUP_AUTOMATION, groupId, data);
+  // Clean up undefined values from userPoints to avoid Firestore errors
+  const cleanedData = {
+    ...data,
+    userPoints: data.userPoints.map((user) => {
+      const cleanUser: Record<string, unknown> = {
+        userId: user.userId,
+        username: user.username,
+        points: user.points,
+      };
+      // Only include subGroupId if it has a value
+      if (user.subGroupId) {
+        cleanUser.subGroupId = user.subGroupId;
+      }
+      return cleanUser;
+    }),
+  };
+  await setDocument(COLLECTIONS.GROUP_AUTOMATION, groupId, cleanedData);
 }
 
 export async function GET(
@@ -229,14 +245,19 @@ export async function POST(
     } else if (body.action === "assignUserToSubGroup") {
       const user = data.userPoints.find((u) => u.userId === body.userId);
       if (user) {
-        user.subGroupId = body.subGroupId || undefined;
-      } else {
-        // Create user entry if doesn't exist
+        // If subGroupId is null or empty, remove the field entirely; otherwise set it
+        if (body.subGroupId) {
+          user.subGroupId = body.subGroupId;
+        } else {
+          delete user.subGroupId;
+        }
+      } else if (body.subGroupId) {
+        // Only create user entry if assigning to a sub-group
         data.userPoints.push({
           userId: body.userId,
           username: body.username,
           points: 0,
-          subGroupId: body.subGroupId || undefined,
+          subGroupId: body.subGroupId,
         });
       }
     } else if (body.action === "removeUserFromSubGroup") {
