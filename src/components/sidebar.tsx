@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -16,8 +17,6 @@ import {
   FileCode,
   Shield
 } from "lucide-react";
-
-const ADMIN_USER_ID = "3857050833";
 
 interface SidebarProps {
   activeTab: string;
@@ -41,8 +40,25 @@ const bottomItems = [
 export function Sidebar({ activeTab, onTabChange, collapsed, onCollapsedChange }: SidebarProps) {
   const { data: session } = useSession();
   const router = useRouter();
-  
-  const isAdmin = session?.user?.robloxId === ADMIN_USER_ID;
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const response = await fetch("/api/admin/check");
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.isAdmin);
+        }
+      } catch (error) {
+        console.error("Error checking admin status:", error);
+      }
+    };
+    
+    if (session?.user?.robloxId) {
+      checkAdmin();
+    }
+  }, [session?.user?.robloxId]);
 
   if (!session) return null;
 

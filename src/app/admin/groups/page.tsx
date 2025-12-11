@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,8 +35,6 @@ import {
   Hash,
   Settings,
 } from "lucide-react";
-
-const ADMIN_USER_ID = "3857050833";
 
 interface ConnectedGroup {
   groupId: number;
@@ -73,20 +71,9 @@ export default function AdminGroupsPage() {
   const [groupToLeave, setGroupToLeave] = useState<ConnectedGroup | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ConnectedGroup | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  const isAdmin = session?.user?.robloxId === ADMIN_USER_ID;
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    } else if (status === "authenticated" && !isAdmin) {
-      router.push("/");
-    } else if (status === "authenticated" && isAdmin) {
-      fetchGroups();
-    }
-  }, [status, isAdmin, router]);
-
-  async function fetchGroups() {
+  const fetchGroups = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/admin/groups");
@@ -100,7 +87,31 @@ export default function AdminGroupsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const response = await fetch("/api/admin/check");
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.isAdmin);
+          if (data.isAdmin) {
+            fetchGroups();
+          }
+        }
+      } catch (error) {
+        console.error("Error checking admin status:", error);
+        setIsAdmin(false);
+      }
+    };
+
+    if (status === "unauthenticated") {
+      router.push("/");
+    } else if (status === "authenticated") {
+      checkAdmin();
+    }
+  }, [status, router, fetchGroups]);
 
   async function handleLeaveGroup(groupId: number) {
     setActionLoading(groupId);

@@ -21,12 +21,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, UserMinus, Users, Loader2, ChevronDown, Settings, Plus, Minus, ShieldBan, Clock, ClipboardList, FolderTree, Award } from "lucide-react";
+import { Search, UserMinus, Users, Loader2, ChevronDown, Settings, Plus, Minus, ShieldBan, Clock, ClipboardList, FolderTree, Award, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { AutomationPanel, Rule, UserPoints, SuspendedRole, Suspension } from "./automation-panel";
 import { AuditLogPanel } from "./audit-log-panel";
 import { SubGroupsPanel } from "./sub-groups-panel";
 import { AwardsPanel } from "./awards-panel";
+import { GroupAccessPanel } from "./group-access-panel";
 import { UserProfileDialog } from "./user-profile-dialog";
 import { ConfirmDialog } from "./confirm-dialog";
 import { SuspendDialog } from "./suspend-dialog";
@@ -140,7 +141,7 @@ export function GroupManagementDialog({
     newPoints: number;
   } | null>(null);
   const [subGroups, setSubGroups] = useState<SubGroup[]>([]);
-  const [activeTab, setActiveTab] = useState("automation");
+  const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const [selectedUser, setSelectedUser] = useState<{
     userId: number;
     username: string;
@@ -148,6 +149,52 @@ export function GroupManagementDialog({
     avatarUrl?: string;
   } | null>(null);
   const [userAwardsMap, setUserAwardsMap] = useState<Map<number, Array<{ icon: string; name: string }>>>(new Map());
+  const [userPermissions, setUserPermissions] = useState({
+    canKick: true,
+    canSuspend: true,
+    canChangeRole: true,
+    canManagePoints: true,
+    canManageDivisions: true,
+    canViewAuditLog: true,
+    canManageAutomation: true,
+    canManageAwards: true,
+  });
+  const [isFullAccess, setIsFullAccess] = useState(true);
+  const [userRank, setUserRank] = useState<number>(255); // Default to max rank, will be updated
+
+  // Fetch user permissions for this group
+  useEffect(() => {
+    if (!open) return;
+    
+    const fetchPermissions = async () => {
+      try {
+        const response = await fetch(`/api/groups/${group.id}/access`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.userPermissions) {
+            setUserPermissions(data.userPermissions);
+            // Set default tab based on first available permission
+            if (!activeTab) {
+              if (data.userPermissions.canManageAutomation) setActiveTab("automation");
+              else if (data.userPermissions.canManageDivisions) setActiveTab("subgroups");
+              else if (data.userPermissions.canManageAwards) setActiveTab("awards");
+              else if (data.isFullAccess) setActiveTab("access");
+              else if (data.userPermissions.canViewAuditLog) setActiveTab("audit");
+            }
+          }
+          setIsFullAccess(data.isFullAccess ?? true);
+          // Set user's rank if provided
+          if (data.userRank !== undefined) {
+            setUserRank(data.userRank);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching permissions:", error);
+      }
+    };
+    
+    fetchPermissions();
+  }, [open, group.id, activeTab]);
 
   // Fetch awards for the group
   useEffect(() => {
@@ -682,9 +729,16 @@ export function GroupManagementDialog({
     }
   };
 
-  // Filter roles to only show those below bot's rank
+  // Filter roles to only show those below bot's rank AND below user's rank (unless full access)
   const availableRoles = roles
-    .filter((role) => role.rank < botRank && role.rank > 0)
+    .filter((role) => {
+      // Must be below bot's rank and above Guest (rank 0)
+      if (role.rank >= botRank || role.rank <= 0) return false;
+      // If user has full access (site admin/owner), show all roles below bot
+      if (isFullAccess) return true;
+      // Otherwise, only show roles below user's rank
+      return role.rank < userRank;
+    })
     .sort((a, b) => b.rank - a.rank);
 
   return (
@@ -789,11 +843,11 @@ export function GroupManagementDialog({
             )}
 
             {/* Members List */}
-            <div className="flex-1 min-h-0 flex flex-col">
-              <h4 className="text-sm font-medium mb-2">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <h4 className="text-sm font-medium mb-2 shrink-0">
                 Group Members ({members.length}{cursor ? "+" : ""})
               </h4>
-              <ScrollArea className="flex-1 border rounded-lg">
+              <ScrollArea className="flex-1 border rounded-lg h-0">
                 {loading ? (
                   <div className="p-3 space-y-2">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -873,47 +927,51 @@ export function GroupManagementDialog({
                             </Badge>
                           )}
                           {/* Points Controls */}
-                          <div className="flex items-center gap-1 mr-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleUpdatePoints(member.user.userId, member.user.username, -1)}
+                          {userPermissions.canManagePoints && (
+                            <div className="flex items-center gap-1 mr-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleUpdatePoints(member.user.userId, member.user.username, -1)}
+                                disabled={actionLoading === member.user.userId}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="w-8 text-center text-sm font-medium">
+                                {getUserPoints(member.user.userId)}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleUpdatePoints(member.user.userId, member.user.username, 1)}
+                                disabled={actionLoading === member.user.userId}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                          {userPermissions.canChangeRole && (
+                            <Select
+                              value={member.role.id.toString()}
+                              onValueChange={(value) => handleRoleChange(member.user.userId, value)}
                               disabled={actionLoading === member.user.userId}
                             >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Badge variant="secondary" className="min-w-[40px] justify-center">
-                              {getUserPoints(member.user.userId)}
-                            </Badge>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleUpdatePoints(member.user.userId, member.user.username, 1)}
-                              disabled={actionLoading === member.user.userId}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <Select
-                            value={member.role.id.toString()}
-                            onValueChange={(value) => handleRoleChange(member.user.userId, value)}
-                            disabled={actionLoading === member.user.userId}
-                          >
-                            <SelectTrigger className="w-[120px] h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableRoles.map((role) => (
-                                <SelectItem key={role.id} value={role.id.toString()}>
-                                  {role.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                              <SelectTrigger className="w-[120px] h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableRoles.map((role) => (
+                                  <SelectItem key={role.id} value={role.id.toString()}>
+                                    {role.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                           {/* Suspend/Unsuspend Button */}
-                          {suspendedRole && (
+                          {userPermissions.canSuspend && suspendedRole && (
                             getUserSuspension(member.user.userId) ? (
                               <Button
                                 variant="outline"
@@ -950,19 +1008,21 @@ export function GroupManagementDialog({
                               </Button>
                             )
                           )}
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => confirmKick(member.user.userId, member.user.username)}
-                            disabled={actionLoading === member.user.userId}
-                          >
-                            {actionLoading === member.user.userId ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <UserMinus className="h-4 w-4" />
-                            )}
-                          </Button>
+                          {userPermissions.canKick && (
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => confirmKick(member.user.userId, member.user.username)}
+                              disabled={actionLoading === member.user.userId}
+                            >
+                              {actionLoading === member.user.userId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <UserMinus className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1004,23 +1064,37 @@ export function GroupManagementDialog({
               onValueChange={setActiveTab}
               className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="grid w-full grid-cols-4 mb-4">
-                <TabsTrigger value="automation" className="flex items-center gap-1 text-xs">
-                  <Settings className="h-3 w-3" />
-                  Automation
-                </TabsTrigger>
-                <TabsTrigger value="subgroups" className="flex items-center gap-1 text-xs">
-                  <FolderTree className="h-3 w-3" />
-                  Sub-Groups
-                </TabsTrigger>
-                <TabsTrigger value="awards" className="flex items-center gap-1 text-xs">
-                  <Award className="h-3 w-3" />
-                  Awards
-                </TabsTrigger>
-                <TabsTrigger value="audit" className="flex items-center gap-1 text-xs">
-                  <ClipboardList className="h-3 w-3" />
-                  Audit Log
-                </TabsTrigger>
+              <TabsList className="grid w-full grid-cols-5 mb-4">
+                {userPermissions.canManageAutomation && (
+                  <TabsTrigger value="automation" className="flex items-center gap-1 text-xs">
+                    <Settings className="h-3 w-3" />
+                    Automation
+                  </TabsTrigger>
+                )}
+                {userPermissions.canManageDivisions && (
+                  <TabsTrigger value="subgroups" className="flex items-center gap-1 text-xs">
+                    <FolderTree className="h-3 w-3" />
+                    Sub-Groups
+                  </TabsTrigger>
+                )}
+                {userPermissions.canManageAwards && (
+                  <TabsTrigger value="awards" className="flex items-center gap-1 text-xs">
+                    <Award className="h-3 w-3" />
+                    Awards
+                  </TabsTrigger>
+                )}
+                {isFullAccess && (
+                  <TabsTrigger value="access" className="flex items-center gap-1 text-xs">
+                    <KeyRound className="h-3 w-3" />
+                    Access
+                  </TabsTrigger>
+                )}
+                {userPermissions.canViewAuditLog && (
+                  <TabsTrigger value="audit" className="flex items-center gap-1 text-xs">
+                    <ClipboardList className="h-3 w-3" />
+                    Audit Log
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="automation" className="flex-1 min-h-0 mt-0">
@@ -1054,6 +1128,13 @@ export function GroupManagementDialog({
                   scopeId={group.id}
                   scopeName={group.name}
                   members={members}
+                />
+              </TabsContent>
+
+              <TabsContent value="access" className="flex-1 min-h-0 mt-0">
+                <GroupAccessPanel
+                  groupId={group.id}
+                  availableRoles={roles}
                 />
               </TabsContent>
 

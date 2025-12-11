@@ -1,9 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { getDb, COLLECTIONS } from "@/lib/firebase";
-
-const ADMIN_USER_ID = "3857050833";
+import { getDb, COLLECTIONS, isSiteAdmin } from "@/lib/firebase";
 
 export interface PendingBotJoin {
   id: string;
@@ -29,7 +27,7 @@ export async function GET() {
   }
 
   // Check if user is admin
-  if (session.user.robloxId !== ADMIN_USER_ID) {
+  if (!(await isSiteAdmin(session.user.robloxId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -64,7 +62,7 @@ export async function POST(request: Request) {
   }
 
   // Check if user is admin
-  if (session.user.robloxId !== ADMIN_USER_ID) {
+  if (!(await isSiteAdmin(session.user.robloxId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

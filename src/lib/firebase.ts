@@ -49,7 +49,46 @@ export const COLLECTIONS = {
   GROUP_AUTOMATION: "groupAutomation",
   AUDIT_LOGS: "auditLogs",
   PENDING_BOT_JOINS: "pendingBotJoins",
+  GROUP_ACCESS: "groupAccess",
+  SITE_CONFIG: "siteConfig",
 } as const;
+
+// Site admin interface - just stores robloxId
+export interface SiteAdmin {
+  robloxId: string;
+}
+
+// Get all site admins (always fetches fresh from DB)
+export async function getSiteAdmins(): Promise<SiteAdmin[]> {
+  try {
+    const db = getDb();
+    const configDoc = await db.collection(COLLECTIONS.SITE_CONFIG).doc("admins").get();
+    
+    if (!configDoc.exists) {
+      // Initialize with default admin if no config exists
+      const defaultAdmins: SiteAdmin[] = [{
+        robloxId: "3857050833",
+      }];
+      await db.collection(COLLECTIONS.SITE_CONFIG).doc("admins").set({ admins: defaultAdmins });
+      return defaultAdmins;
+    }
+
+    const data = configDoc.data();
+    const admins = data?.admins || [];
+    return admins;
+  } catch (error) {
+    console.error("Error fetching site admins:", error);
+    // Fallback to default admin on error
+    return [{ robloxId: "3857050833" }];
+  }
+}
+
+// Check if a user is a site admin
+export async function isSiteAdmin(robloxId: string): Promise<boolean> {
+  const admins = await getSiteAdmins();
+  return admins.some(admin => admin.robloxId === robloxId);
+}
+
 
 // Helper to get a document reference with type safety
 export async function getDocument<T>(

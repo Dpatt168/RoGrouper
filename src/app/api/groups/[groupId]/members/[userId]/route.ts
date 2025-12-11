@@ -1,9 +1,43 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { getDocument, COLLECTIONS } from "@/lib/firebase";
+import { getDocument, COLLECTIONS, isSiteAdmin } from "@/lib/firebase";
 
 const BOT_COOKIE = process.env.ROBLOX_BOT_TOKEN;
+
+// Get user's role in a group
+async function getUserGroupRole(groupId: string, userId: string): Promise<{ roleId: number; rank: number } | null> {
+  try {
+    const response = await fetch(
+      `https://groups.roblox.com/v1/users/${userId}/groups/roles`
+    );
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const membership = data.data?.find((g: { group: { id: number } }) => g.group.id === parseInt(groupId));
+    if (!membership) return null;
+    
+    return { roleId: membership.role.id, rank: membership.role.rank };
+  } catch {
+    return null;
+  }
+}
+
+// Get role info by ID
+async function getRoleInfo(groupId: string, roleId: number): Promise<{ rank: number; name: string } | null> {
+  try {
+    const response = await fetch(`https://groups.roblox.com/v1/groups/${groupId}/roles`);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const role = data.roles?.find((r: { id: number }) => r.id === roleId);
+    if (!role) return null;
+    
+    return { rank: role.rank, name: role.name };
+  } catch {
+    return null;
+  }
+}
 
 // Helper to make Roblox API requests with bot cookie and XSRF token handling
 async function robloxBotRequest(
@@ -121,6 +155,40 @@ export async function PATCH(
 
   try {
     const { roleId, triggerSync = true } = await request.json();
+
+    // Check if user is site admin (can assign any role)
+    const isAdmin = await isSiteAdmin(session.user.robloxId);
+    
+    if (!isAdmin) {
+      // Get the requesting user's rank in this group
+      const userRole = await getUserGroupRole(groupId, session.user.robloxId);
+      
+      // Get the target role's rank
+      const targetRole = await getRoleInfo(groupId, roleId);
+      
+      if (!userRole) {
+        return NextResponse.json(
+          { error: "You must be a member of this group to change roles" },
+          { status: 403 }
+        );
+      }
+      
+      if (!targetRole) {
+        return NextResponse.json(
+          { error: "Invalid target role" },
+          { status: 400 }
+        );
+      }
+      
+      // Users can only assign roles with rank lower than their own
+      // (rank 255 is owner, higher rank = more power)
+      if (targetRole.rank >= userRole.rank) {
+        return NextResponse.json(
+          { error: `You cannot assign roles at or above your rank (${userRole.rank}). Target role "${targetRole.name}" has rank ${targetRole.rank}.` },
+          { status: 403 }
+        );
+      }
+    }
 
     const response = await robloxBotRequest(
       `https://groups.roblox.com/v1/groups/${groupId}/users/${userId}`,

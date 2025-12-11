@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,13 @@ import {
   ExternalLink,
   Users,
   ArrowLeft,
-  FolderOpen
+  FolderOpen,
+  UserPlus,
+  Search,
+  Crown
 } from "lucide-react";
-
-const ADMIN_USER_ID = "3857050833";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface PendingBotJoin {
   id: string;
@@ -38,26 +41,29 @@ interface PendingBotJoin {
   error?: string;
 }
 
+interface SiteAdmin {
+  robloxId: string;
+}
+
+interface SiteAdminWithInfo extends SiteAdmin {
+  username?: string;
+  displayName?: string;
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [requests, setRequests] = useState<PendingBotJoin[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [siteAdmins, setSiteAdmins] = useState<SiteAdminWithInfo[]>([]);
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
+  const [adminSearchResults, setAdminSearchResults] = useState<Array<{ id: number; name: string; displayName: string }>>([]);
+  const [searchingAdmin, setSearchingAdmin] = useState(false);
+  const [adminActionLoading, setAdminActionLoading] = useState<string | null>(null);
 
-  const isAdmin = session?.user?.robloxId === ADMIN_USER_ID;
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    } else if (status === "authenticated" && !isAdmin) {
-      router.push("/");
-    } else if (status === "authenticated" && isAdmin) {
-      fetchRequests();
-    }
-  }, [status, isAdmin, router]);
-
-  async function fetchRequests() {
+  const fetchRequests = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/admin/pending-joins");
@@ -70,7 +76,134 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  const fetchSiteAdmins = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/site-admins");
+      if (response.ok) {
+        const data = await response.json();
+        const admins: SiteAdmin[] = data.admins || [];
+        
+        // Fetch user info for each admin
+        const adminsWithInfo: SiteAdminWithInfo[] = await Promise.all(
+          admins.map(async (admin) => {
+            try {
+              const userResponse = await fetch(`/api/roblox/user/${admin.robloxId}`);
+              if (userResponse.ok) {
+                const userData = await userResponse.json();
+                return {
+                  ...admin,
+                  username: userData.name,
+                  displayName: userData.displayName,
+                };
+              }
+            } catch {
+              // Ignore errors fetching user info
+            }
+            return admin;
+          })
+        );
+        
+        setSiteAdmins(adminsWithInfo);
+      }
+    } catch (error) {
+      console.error("Error fetching site admins:", error);
+    }
+  }, []);
+
+  const searchUsers = async () => {
+    if (!adminSearchQuery.trim()) return;
+    setSearchingAdmin(true);
+    try {
+      const response = await fetch(`/api/roblox/users?query=${encodeURIComponent(adminSearchQuery)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAdminSearchResults(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error searching users:", error);
+    } finally {
+      setSearchingAdmin(false);
+    }
+  };
+
+  const addSiteAdmin = async (user: { id: number; name: string; displayName: string }) => {
+    setAdminActionLoading(user.id.toString());
+    try {
+      const response = await fetch("/api/admin/site-admins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          robloxId: user.id.toString(),
+          username: user.name,
+          displayName: user.displayName,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSiteAdmins(data.admins || []);
+        setAdminSearchResults([]);
+        setAdminSearchQuery("");
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to add admin");
+      }
+    } catch (error) {
+      console.error("Error adding admin:", error);
+    } finally {
+      setAdminActionLoading(null);
+    }
+  };
+
+  const removeSiteAdmin = async (robloxId: string) => {
+    if (!confirm("Are you sure you want to remove this site admin?")) return;
+    setAdminActionLoading(robloxId);
+    try {
+      const response = await fetch("/api/admin/site-admins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", robloxId }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSiteAdmins(data.admins || []);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to remove admin");
+      }
+    } catch (error) {
+      console.error("Error removing admin:", error);
+    } finally {
+      setAdminActionLoading(null);
+    }
+  };
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const response = await fetch("/api/admin/check");
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.isAdmin);
+          if (data.isAdmin) {
+            fetchRequests();
+            fetchSiteAdmins();
+          }
+        }
+      } catch (error) {
+        console.error("Error checking admin status:", error);
+        setIsAdmin(false);
+      }
+    };
+
+    if (status === "unauthenticated") {
+      router.push("/");
+    } else if (status === "authenticated") {
+      checkAdmin();
+    }
+  }, [status, router, fetchRequests]);
 
   async function handleAction(requestId: string, action: string, error?: string) {
     setActionLoading(requestId);
@@ -306,6 +439,119 @@ export default function AdminPage() {
               </div>
             </ScrollArea>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Site Admins Management */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="h-5 w-5" />
+            Site Administrators
+          </CardTitle>
+          <CardDescription>
+            Manage users who have full administrative access to this site
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Add Admin Search */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search for a user to add as admin..."
+                value={adminSearchQuery}
+                onChange={(e) => setAdminSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && searchUsers()}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={searchUsers} disabled={searchingAdmin || !adminSearchQuery.trim()}>
+              {searchingAdmin ? <RefreshCw className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+            </Button>
+          </div>
+
+          {/* Search Results */}
+          {adminSearchResults.length > 0 && (
+            <div className="border rounded-lg p-2 space-y-1 bg-muted/30">
+              <p className="text-xs text-muted-foreground px-2 mb-2">Search Results</p>
+              {adminSearchResults.slice(0, 5).map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-2 hover:bg-background rounded-md"
+                >
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>{user.name[0]}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-medium">{user.displayName}</p>
+                      <p className="text-xs text-muted-foreground">@{user.name}</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => addSiteAdmin(user)}
+                    disabled={adminActionLoading === user.id.toString() || siteAdmins.some(a => a.robloxId === user.id.toString())}
+                  >
+                    {adminActionLoading === user.id.toString() ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : siteAdmins.some(a => a.robloxId === user.id.toString()) ? (
+                      "Already Admin"
+                    ) : (
+                      "Add Admin"
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Current Admins List */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Current Site Admins ({siteAdmins.length})</p>
+            {siteAdmins.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No site admins configured</p>
+            ) : (
+              <div className="space-y-2">
+                {siteAdmins.map((admin) => (
+                  <div
+                    key={admin.robloxId}
+                    className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback>{admin.username?.[0] || admin.robloxId[0]}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{admin.displayName || admin.username || admin.robloxId}</p>
+                          <Badge variant="secondary" className="text-xs">
+                            <Crown className="h-3 w-3 mr-1" />
+                            Admin
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{admin.username ? `@${admin.username}` : `ID: ${admin.robloxId}`}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeSiteAdmin(admin.robloxId)}
+                      disabled={adminActionLoading === admin.robloxId || admin.robloxId === session?.user?.robloxId}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      {adminActionLoading === admin.robloxId ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

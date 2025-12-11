@@ -1,9 +1,9 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
+import { isSiteAdmin } from "@/lib/firebase";
 
 const BOT_COOKIE = process.env.ROBLOX_BOT_TOKEN;
-const ADMIN_USER_ID = "3857050833";
 
 export interface ConnectedGroup {
   groupId: number;
@@ -67,7 +67,7 @@ async function checkRolePermissions(groupId: number, roleId: number): Promise<bo
 export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.robloxId || session.user.robloxId !== ADMIN_USER_ID) {
+  if (!session?.user?.robloxId || !(await isSiteAdmin(session.user.robloxId))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -173,7 +173,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.robloxId || session.user.robloxId !== ADMIN_USER_ID) {
+  if (!session?.user?.robloxId || !(await isSiteAdmin(session.user.robloxId))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
+import { getDb, COLLECTIONS } from "@/lib/firebase";
 
 const BOT_COOKIE = process.env.ROBLOX_BOT_TOKEN;
 
@@ -248,6 +249,76 @@ async function fetchBotGroupStatus(
   return statusMap;
 }
 
+// Get groups where user has custom access (via allowed roles or allowed users)
+async function getCustomAccessGroups(robloxId: string, userGroups: RobloxGroup[]): Promise<number[]> {
+  try {
+    const db = getDb();
+    const accessSnapshot = await db.collection(COLLECTIONS.GROUP_ACCESS).get();
+    const accessibleGroupIds: number[] = [];
+
+    for (const doc of accessSnapshot.docs) {
+      const accessData = doc.data();
+      const groupId = parseInt(doc.id);
+
+      // Check if user is in allowed users list
+      if (accessData.allowedUsers?.some((u: { robloxId: string }) => u.robloxId === robloxId)) {
+        accessibleGroupIds.push(groupId);
+        continue;
+      }
+
+      // Check if user's role in this group is in allowed roles list
+      const userMembership = userGroups.find(g => g.group.id === groupId);
+      if (userMembership && accessData.allowedRoles?.some((r: { roleId: number }) => r.roleId === userMembership.role.id)) {
+        accessibleGroupIds.push(groupId);
+      }
+    }
+
+    return accessibleGroupIds;
+  } catch (error) {
+    console.error("Error fetching custom access groups:", error);
+    return [];
+  }
+}
+
+// Fetch group details for groups where user has custom access but isn't high rank
+async function fetchGroupDetails(groupIds: number[]): Promise<RobloxGroup[]> {
+  if (groupIds.length === 0) return [];
+  
+  const groups: RobloxGroup[] = [];
+  
+  for (const groupId of groupIds) {
+    try {
+      const response = await fetch(
+        `https://groups.roblox.com/v1/groups/${groupId}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (response.ok) {
+        const groupData = await response.json();
+        groups.push({
+          group: {
+            id: groupData.id,
+            name: groupData.name,
+            description: groupData.description,
+            owner: groupData.owner,
+            memberCount: groupData.memberCount,
+            created: groupData.created,
+            hasVerifiedBadge: groupData.hasVerifiedBadge,
+          },
+          role: {
+            id: 0,
+            name: "Custom Access",
+            rank: 0,
+          },
+        });
+      }
+    } catch (error) {
+      console.error(`Error fetching group ${groupId}:`, error);
+    }
+  }
+  
+  return groups;
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
 
@@ -271,20 +342,50 @@ export async function GET() {
     }
 
     const data = await response.json();
-    const groups: RobloxGroup[] = data.data || [];
+    const allUserGroups: RobloxGroup[] = data.data || [];
 
     // Filter to only groups where user can manage roles (rank >= 254)
-    const manageableGroups = groups.filter((g) => g.role.rank >= 254);
+    const manageableGroups = allUserGroups.filter((g) => g.role.rank >= 254);
+    const manageableGroupIds = new Set(manageableGroups.map(g => g.group.id));
 
-    // Fetch icons and bot status for filtered groups
-    const groupIds = manageableGroups.map((g) => g.group.id);
+    // Get groups where user has custom access
+    const customAccessGroupIds = await getCustomAccessGroups(session.user.robloxId, allUserGroups);
+    
+    // Filter out groups user already has high rank access to
+    const additionalGroupIds = customAccessGroupIds.filter(id => !manageableGroupIds.has(id));
+    
+    // For custom access groups where user is a member but not high rank, use their existing membership data
+    const customAccessGroupsFromMembership = allUserGroups.filter(
+      g => additionalGroupIds.includes(g.group.id)
+    ).map(g => ({
+      ...g,
+      role: {
+        ...g.role,
+        name: `${g.role.name} (Custom Access)`,
+      },
+    }));
+    
+    // For custom access groups where user is not a member, fetch group details
+    const memberGroupIds = new Set(allUserGroups.map(g => g.group.id));
+    const nonMemberCustomAccessIds = additionalGroupIds.filter(id => !memberGroupIds.has(id));
+    const nonMemberCustomAccessGroups = await fetchGroupDetails(nonMemberCustomAccessIds);
+
+    // Combine all accessible groups
+    const allAccessibleGroups = [
+      ...manageableGroups,
+      ...customAccessGroupsFromMembership,
+      ...nonMemberCustomAccessGroups,
+    ];
+
+    // Fetch icons and bot status for all groups
+    const groupIds = allAccessibleGroups.map((g) => g.group.id);
     const [iconMap, botStatusMap] = await Promise.all([
       fetchGroupIcons(groupIds),
       fetchBotGroupStatus(groupIds),
     ]);
 
     // Add icon URLs and bot status to groups
-    const groupsWithData = manageableGroups.map((g) => {
+    const groupsWithData = allAccessibleGroups.map((g) => {
       const botInfo = botStatusMap.get(g.group.id);
       return {
         ...g,
@@ -295,6 +396,7 @@ export async function GET() {
         botStatus: botInfo?.status || "not_in_group",
         botRank: botInfo?.rank || 0,
         botRoleName: botInfo?.roleName || "",
+        hasCustomAccess: customAccessGroupIds.includes(g.group.id),
       };
     });
 
