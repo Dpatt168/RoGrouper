@@ -28,7 +28,10 @@ export async function GET(request: Request) {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to search users");
+      const errorText = await response.text();
+      console.error("Roblox API error:", response.status, errorText);
+      // Return empty results instead of error for rate limiting or other API issues
+      return NextResponse.json({ data: [] });
     }
 
     const data = await response.json();
@@ -43,9 +46,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ data: users });
   } catch (error) {
     console.error("Error searching users:", error);
-    return NextResponse.json(
-      { error: "Failed to search users" },
-      { status: 500 }
-    );
+    // Return empty results instead of error
+    return NextResponse.json({ data: [] });
   }
 }

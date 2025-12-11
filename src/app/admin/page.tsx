@@ -24,7 +24,7 @@ import {
   Crown
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface PendingBotJoin {
   id: string;
@@ -48,6 +48,7 @@ interface SiteAdmin {
 interface SiteAdminWithInfo extends SiteAdmin {
   username?: string;
   displayName?: string;
+  avatarUrl?: string;
 }
 
 export default function AdminPage() {
@@ -92,10 +93,24 @@ export default function AdminPage() {
               const userResponse = await fetch(`/api/roblox/user/${admin.robloxId}`);
               if (userResponse.ok) {
                 const userData = await userResponse.json();
+                // Get avatar thumbnail
+                let avatarUrl: string | undefined;
+                try {
+                  const avatarRes = await fetch(
+                    `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${admin.robloxId}&size=150x150&format=Png`
+                  );
+                  if (avatarRes.ok) {
+                    const avatarData = await avatarRes.json();
+                    avatarUrl = avatarData.data?.[0]?.imageUrl;
+                  }
+                } catch {
+                  // Ignore avatar fetch errors
+                }
                 return {
                   ...admin,
-                  username: userData.name,
-                  displayName: userData.displayName,
+                  username: userData.userInfo?.name,
+                  displayName: userData.userInfo?.displayName,
+                  avatarUrl,
                 };
               }
             } catch {
@@ -521,6 +536,7 @@ export default function AdminPage() {
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
+                        <AvatarImage src={admin.avatarUrl} alt={admin.username || admin.robloxId} />
                         <AvatarFallback>{admin.username?.[0] || admin.robloxId[0]}</AvatarFallback>
                       </Avatar>
                       <div>
