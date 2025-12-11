@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import {
   Dialog,
   DialogContent,
@@ -114,6 +115,8 @@ export function GroupManagementDialog({
   onOpenChange,
   group,
 }: GroupManagementDialogProps) {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.robloxId ? parseInt(session.user.robloxId) : null;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -926,102 +929,108 @@ export function GroupManagementDialog({
                               {formatTimeRemaining(getUserSuspension(member.user.userId)!.expiresAt)}
                             </Badge>
                           )}
-                          {/* Points Controls */}
-                          {userPermissions.canManagePoints && (
-                            <div className="flex items-center gap-1 mr-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleUpdatePoints(member.user.userId, member.user.username, -1)}
-                                disabled={actionLoading === member.user.userId}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-8 text-center text-sm font-medium">
-                                {getUserPoints(member.user.userId)}
-                              </span>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleUpdatePoints(member.user.userId, member.user.username, 1)}
-                                disabled={actionLoading === member.user.userId}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          )}
-                          {userPermissions.canChangeRole && (
-                            <Select
-                              value={member.role.id.toString()}
-                              onValueChange={(value) => handleRoleChange(member.user.userId, value)}
-                              disabled={actionLoading === member.user.userId}
-                            >
-                              <SelectTrigger className="w-[120px] h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {availableRoles.map((role) => (
-                                  <SelectItem key={role.id} value={role.id.toString()}>
-                                    {role.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                          {/* Suspend/Unsuspend Button */}
-                          {userPermissions.canSuspend && suspendedRole && (
-                            getUserSuspension(member.user.userId) ? (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => {
-                                  const suspension = getUserSuspension(member.user.userId)!;
-                                  handleUnsuspend(member.user.userId, member.user.username, suspension.previousRoleId);
-                                }}
-                                disabled={actionLoading === member.user.userId}
-                                title="Lift suspension"
-                              >
-                                {actionLoading === member.user.userId ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <ShieldBan className="h-4 w-4 text-green-500" />
-                                )}
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => setSuspendTarget({
-                                  userId: member.user.userId,
-                                  username: member.user.username,
-                                  roleId: member.role.id,
-                                  roleName: member.role.name,
-                                })}
-                                disabled={actionLoading === member.user.userId}
-                                title="Suspend user"
-                              >
-                                <ShieldBan className="h-4 w-4 text-destructive" />
-                              </Button>
-                            )
-                          )}
-                          {userPermissions.canKick && (
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => confirmKick(member.user.userId, member.user.username)}
-                              disabled={actionLoading === member.user.userId}
-                            >
-                              {actionLoading === member.user.userId ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <UserMinus className="h-4 w-4" />
+                          {/* All action controls - hidden for current user (can only be managed from admin page) */}
+                          {member.user.userId !== currentUserId && (
+                            <>
+                              {/* Points Controls */}
+                              {userPermissions.canManagePoints && (
+                                <div className="flex items-center gap-1 mr-2">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleUpdatePoints(member.user.userId, member.user.username, -1)}
+                                    disabled={actionLoading === member.user.userId}
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <span className="w-8 text-center text-sm font-medium">
+                                    {getUserPoints(member.user.userId)}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleUpdatePoints(member.user.userId, member.user.username, 1)}
+                                    disabled={actionLoading === member.user.userId}
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               )}
-                            </Button>
+                              {userPermissions.canChangeRole && (
+                                <Select
+                                  value={member.role.id.toString()}
+                                  onValueChange={(value) => handleRoleChange(member.user.userId, value)}
+                                  disabled={actionLoading === member.user.userId}
+                                >
+                                  <SelectTrigger className="w-[120px] h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availableRoles.map((role) => (
+                                      <SelectItem key={role.id} value={role.id.toString()}>
+                                        {role.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {/* Suspend/Unsuspend Button */}
+                              {userPermissions.canSuspend && suspendedRole && (
+                                getUserSuspension(member.user.userId) ? (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => {
+                                      const suspension = getUserSuspension(member.user.userId)!;
+                                      handleUnsuspend(member.user.userId, member.user.username, suspension.previousRoleId);
+                                    }}
+                                    disabled={actionLoading === member.user.userId}
+                                    title="Lift suspension"
+                                  >
+                                    {actionLoading === member.user.userId ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <ShieldBan className="h-4 w-4 text-green-500" />
+                                    )}
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => setSuspendTarget({
+                                      userId: member.user.userId,
+                                      username: member.user.username,
+                                      roleId: member.role.id,
+                                      roleName: member.role.name,
+                                    })}
+                                    disabled={actionLoading === member.user.userId}
+                                    title="Suspend user"
+                                  >
+                                    <ShieldBan className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )
+                              )}
+                              {/* Kick button */}
+                              {userPermissions.canKick && (
+                                <Button
+                                  variant="destructive"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => confirmKick(member.user.userId, member.user.username)}
+                                  disabled={actionLoading === member.user.userId}
+                                >
+                                  {actionLoading === member.user.userId ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <UserMinus className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
