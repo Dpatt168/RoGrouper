@@ -108,12 +108,14 @@ interface GroupManagementDialogProps {
     name: string;
     iconUrl?: string | null;
   };
+  isAdminMode?: boolean; // When true, allows changing own rank
 }
 
 export function GroupManagementDialog({
   open,
   onOpenChange,
   group,
+  isAdminMode = false,
 }: GroupManagementDialogProps) {
   const { data: session } = useSession();
   const currentUserId = session?.user?.robloxId ? parseInt(session.user.robloxId) : null;
@@ -746,7 +748,7 @@ export function GroupManagementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[1400px] w-[90vw] h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-[1400px]! w-[90vw] h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Avatar className="h-8 w-8 rounded-lg">
@@ -929,8 +931,8 @@ export function GroupManagementDialog({
                               {formatTimeRemaining(getUserSuspension(member.user.userId)!.expiresAt)}
                             </Badge>
                           )}
-                          {/* All action controls - hidden for current user (can only be managed from admin page) */}
-                          {member.user.userId !== currentUserId && (
+                          {/* All action controls - hidden for current user unless in admin mode */}
+                          {(member.user.userId !== currentUserId || isAdminMode) && (
                             <>
                               {/* Points Controls */}
                               {userPermissions.canManagePoints && (

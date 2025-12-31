@@ -267,7 +267,7 @@ export default function AdminGroupsPage() {
                     <CardContent className="p-4">
                       <div className="flex items-center gap-4">
                         {/* Group Icon */}
-                        <div className="h-14 w-14 rounded-lg bg-muted overflow-hidden flex-shrink-0">
+                        <div className="h-14 w-14 rounded-lg bg-muted overflow-hidden shrink-0">
                           {group.groupIconUrl ? (
                             <Image
                               src={group.groupIconUrl}
@@ -325,7 +325,7 @@ export default function AdminGroupsPage() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                           {group.hasChangeRankPermission && (
                             <Button
                               variant="default"
@@ -411,6 +411,7 @@ export default function AdminGroupsPage() {
             name: selectedGroup.groupName,
             iconUrl: selectedGroup.groupIconUrl,
           }}
+          isAdminMode={true}
         />
       )}
     </div>

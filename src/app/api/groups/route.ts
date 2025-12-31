@@ -2,7 +2,6 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { getDb, COLLECTIONS } from "@/lib/firebase";
-import { processAllExpiredSuspensions } from "@/lib/process-suspensions";
 
 const BOT_COOKIE = process.env.ROBLOX_BOT_TOKEN;
 
@@ -326,11 +325,6 @@ export async function GET() {
   if (!session?.user?.robloxId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  // Process expired suspensions in background whenever dashboard loads
-  processAllExpiredSuspensions().catch(err => 
-    console.error("[Auto-unsuspend] Background error:", err)
-  );
 
   try {
     const response = await fetch(
