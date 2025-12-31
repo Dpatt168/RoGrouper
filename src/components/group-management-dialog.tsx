@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import {
   Dialog,
@@ -317,33 +317,16 @@ export function GroupManagementDialog({
     }
   }, [open, fetchBotRole, fetchRoles, fetchMembers]);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearching(true);
-    try {
-      const response = await fetch(
-        `/api/users/search?keyword=${encodeURIComponent(searchQuery)}&groupId=${group.id}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const users = data.data || [];
-        setSearchResults(users);
-
-        // Fetch avatars for search results
-        const userIds = users.map((u: SearchedUser) => u.id);
-        const avatars = await fetchAvatarUrls(userIds);
-        setAvatarUrls((prev) => new Map([...prev, ...avatars]));
-      }
-    } catch (error) {
-      console.error("Error searching users:", error);
-    } finally {
-      setSearching(false);
-    }
-  };
+  // Filter members based on search query (partial match on username or display name)
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) return members;
+    const query = searchQuery.toLowerCase().trim();
+    return members.filter(
+      (member) =>
+        member.user.username.toLowerCase().includes(query) ||
+        member.user.displayName.toLowerCase().includes(query)
+    );
+  }, [members, searchQuery]);
 
   const handleRoleChange = async (userId: number, roleId: string, skipSuspensionCheck = false) => {
     // Check if user is suspended and show confirmation
@@ -390,10 +373,6 @@ export function GroupManagementDialog({
         toast.success("Role updated successfully");
         // Refresh members list
         await fetchMembers();
-        // Update search results if applicable
-        if (searchResults.length > 0) {
-          await handleSearch();
-        }
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to update role");
@@ -771,86 +750,22 @@ export function GroupManagementDialog({
             }`}
           >
             {/* Search */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  className="pl-9"
-                />
-              </div>
-              <Button onClick={handleSearch} disabled={searching}>
-                {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-              </Button>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search members..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
-
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <div className="border rounded-lg p-3 bg-muted/30">
-                <h4 className="text-sm font-medium mb-2">Search Results</h4>
-                <div className="space-y-2">
-                  {searchResults.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between p-2 bg-background rounded-md"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={avatarUrls.get(user.id)} alt={user.name} />
-                          <AvatarFallback>{user.name[0]}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium">{user.displayName}</p>
-                          <p className="text-xs text-muted-foreground">@{user.name}</p>
-                        </div>
-                      </div>
-                      {user.inGroup && user.role ? (
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={user.role.id.toString()}
-                            onValueChange={(value) => handleRoleChange(user.id, value)}
-                            disabled={actionLoading === user.id}
-                          >
-                            <SelectTrigger className="w-[140px] h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableRoles.map((role) => (
-                                <SelectItem key={role.id} value={role.id.toString()}>
-                                  {role.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => confirmKick(user.id, user.name)}
-                            disabled={actionLoading === user.id}
-                          >
-                            {actionLoading === user.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <UserMinus className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      ) : (
-                        <Badge variant="outline">Not in group</Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Members List */}
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               <h4 className="text-sm font-medium mb-2 shrink-0">
-                Group Members ({members.length}{cursor ? "+" : ""})
+                {searchQuery.trim() 
+                  ? `Showing ${filteredMembers.length} of ${members.length} members`
+                  : `Group Members (${members.length}${cursor ? "+" : ""})`}
               </h4>
               <ScrollArea className="flex-1 border rounded-lg h-0">
                 {loading ? (
@@ -868,7 +783,7 @@ export function GroupManagementDialog({
                   </div>
                 ) : (
                   <div className="p-3 space-y-2">
-                    {members.map((member) => (
+                    {filteredMembers.map((member) => (
                       <div
                         key={member.user.userId}
                         className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-md"
