@@ -53,4 +53,4 @@ The backend reads environment variables from the root `.env.local` file. Require
 - `FIREBASE_CLIENT_EMAIL` - Firebase service account email
 - `FIREBASE_PRIVATE_KEY` - Firebase service account private key
 - `ROBLOX_BOT_TOKEN` - Roblox bot .ROBLOSECURITY cookie
-- `FRONTEND_URL` - URL of the frontend (default: http://localhost:3000)
+- `FRONTEND_URL` - URL of the frontend (default: http://66.228.59.100:3000)
