@@ -130,7 +130,7 @@ async function getUserGroupRole(groupId: string, robloxId: string): Promise<{ ro
   }
 }
 
-// Check if user can manage access settings (is owner, site admin, or designated admin)
+// Check if user can manage access settings (is owner, site admin, rank 255, or designated admin)
 async function canManageAccess(
   groupId: string,
   robloxId: string,
@@ -142,13 +142,18 @@ async function canManageAccess(
   // Group owner can always manage
   if (await isGroupOwner(groupId, robloxId)) return true;
   
+  // Get user's role to check rank
+  const userRole = await getUserGroupRole(groupId, robloxId);
+  
+  // Rank 255 (group owner role) automatically has admin access
+  if (userRole && userRole.rank === 255) return true;
+  
   if (!accessData) return false;
   
   // Check if user is in admin users list
   if (accessData.adminUsers.some(u => u.robloxId === robloxId)) return true;
   
   // Check if user's role is in admin roles list
-  const userRole = await getUserGroupRole(groupId, robloxId);
   if (userRole && accessData.adminRoles.some(r => r.roleId === userRole.roleId)) return true;
   
   return false;
