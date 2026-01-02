@@ -307,15 +307,30 @@ export function GroupManagementDialog({
     }
   }, [group.id]);
 
+  // Fetch sub-groups data for member badges
+  const fetchSubGroups = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/groups/${group.id}/automation`);
+      if (response.ok) {
+        const data = await response.json();
+        setSubGroups(data.subGroups || []);
+        setUserPoints(data.userPoints || []);
+      }
+    } catch (error) {
+      console.error("Error fetching sub-groups:", error);
+    }
+  }, [group.id]);
+
   useEffect(() => {
     if (open) {
       fetchBotRole();
       fetchRoles();
       fetchMembers();
+      fetchSubGroups();
       setSearchQuery("");
       setSearchResults([]);
     }
-  }, [open, fetchBotRole, fetchRoles, fetchMembers]);
+  }, [open, fetchBotRole, fetchRoles, fetchMembers, fetchSubGroups]);
 
   // Filter members based on search query (partial match on username or display name)
   const filteredMembers = useMemo(() => {
