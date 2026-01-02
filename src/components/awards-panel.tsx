@@ -261,11 +261,11 @@ export function AwardsPanel({ scopeType, scopeId, scopeName, members = [] }: Awa
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className="h-full max-h-[calc(100vh-200px)]">
       <div className="space-y-4 pr-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
           <Award className="h-5 w-5" />
           <h3 className="font-medium">Awards</h3>
         </div>
