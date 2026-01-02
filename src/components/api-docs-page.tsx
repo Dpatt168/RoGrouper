@@ -16,7 +16,8 @@ import {
   Shield,
   FileText,
   Settings,
-  User
+  User,
+  Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -70,7 +71,8 @@ const apiSections: ApiSection[] = [
         "id": 1,
         "name": "Owner",
         "rank": 255
-      }
+      },
+      "botStatus": "ready"
     }
   ]
 }`,
@@ -97,6 +99,7 @@ const apiSections: ApiSection[] = [
         ],
         body: [
           { name: "roleId", type: "number", required: true, description: "The new role ID to assign" },
+          { name: "triggerSync", type: "boolean", required: false, description: "Trigger organization sync (default: true)" },
         ],
       },
       {
@@ -113,6 +116,28 @@ const apiSections: ApiSection[] = [
         method: "GET",
         path: "/api/groups/[groupId]/roles",
         description: "Get all roles in a group",
+        auth: true,
+        params: [
+          { name: "groupId", type: "number", required: true, description: "The Roblox group ID" },
+        ],
+      },
+      {
+        method: "GET",
+        path: "/api/groups/[groupId]/bot-role",
+        description: "Get the bot's role and rank in the group",
+        auth: true,
+        params: [
+          { name: "groupId", type: "number", required: true, description: "The Roblox group ID" },
+        ],
+        response: `{
+  "rank": 90,
+  "roleName": "Vice Chairman"
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/groups/[groupId]/bot-join",
+        description: "Get bot join link for the group",
         auth: true,
         params: [
           { name: "groupId", type: "number", required: true, description: "The Roblox group ID" },
@@ -279,6 +304,43 @@ const apiSections: ApiSection[] = [
     ],
   },
   {
+    title: "Access Control",
+    icon: <Shield className="h-5 w-5" />,
+    description: "Manage who can access group management",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/groups/[groupId]/access",
+        description: "Get access settings for a group",
+        auth: true,
+        params: [
+          { name: "groupId", type: "number", required: true, description: "The Roblox group ID" },
+        ],
+        response: `{
+  "allowedRoles": [{ "roleId": 123, "roleName": "Admin" }],
+  "allowedUsers": [{ "userId": 456, "username": "user" }],
+  "adminRoles": [...],
+  "adminUsers": [...],
+  "permissions": {
+    "canManageAccess": true,
+    "canManageAdmins": false
+  }
+}`,
+      },
+      {
+        method: "POST",
+        path: "/api/groups/[groupId]/access",
+        description: "Update access settings",
+        auth: true,
+        body: [
+          { name: "action", type: "string", required: true, description: '"addRole", "removeRole", "addUser", "removeUser", "addAdminRole", "removeAdminRole", "addAdminUser", "removeAdminUser"' },
+          { name: "roleId", type: "number", required: false, description: "Role ID (for role actions)" },
+          { name: "userId", type: "number", required: false, description: "User ID (for user actions)" },
+        ],
+      },
+    ],
+  },
+  {
     title: "Roblox User",
     icon: <User className="h-5 w-5" />,
     description: "Fetch Roblox user information",
@@ -299,6 +361,51 @@ const apiSections: ApiSection[] = [
     "created": "2020-01-01T00:00:00Z"
   },
   "userGroups": [...]
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/users/search",
+        description: "Search for Roblox users by username",
+        auth: true,
+        params: [
+          { name: "q", type: "string", required: true, description: "Search query (username)" },
+        ],
+        response: `{
+  "users": [
+    {
+      "id": 123,
+      "name": "username",
+      "displayName": "Display Name"
+    }
+  ]
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/users/avatars",
+        description: "Get avatar thumbnails for users",
+        auth: true,
+        params: [
+          { name: "userIds", type: "string", required: true, description: "Comma-separated user IDs" },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Bot",
+    icon: <Bot className="h-5 w-5" />,
+    description: "Bot information and status",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/bot/info",
+        description: "Get bot account information",
+        auth: true,
+        response: `{
+  "id": 123456789,
+  "name": "BotUsername",
+  "displayName": "Bot Display Name"
 }`,
       },
     ],
