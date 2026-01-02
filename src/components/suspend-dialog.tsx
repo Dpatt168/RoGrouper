@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,7 +25,8 @@ interface SuspendDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   username: string;
-  onConfirm: (durationMs: number) => Promise<void>;
+  onConfirm: (durationMs: number, reason?: string) => Promise<void>;
+  showReasonInput?: boolean;
 }
 
 type DurationUnit = "minutes" | "hours" | "days" | "weeks";
@@ -41,10 +43,21 @@ export function SuspendDialog({
   onOpenChange,
   username,
   onConfirm,
+  showReasonInput = false,
 }: SuspendDialogProps) {
   const [duration, setDuration] = useState("1");
   const [unit, setUnit] = useState<DurationUnit>("days");
+  const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setDuration("1");
+      setUnit("days");
+      setReason("");
+    }
+  }, [open]);
 
   const handleConfirm = async () => {
     const durationValue = parseInt(duration);
@@ -53,10 +66,8 @@ export function SuspendDialog({
     const durationMs = durationValue * DURATION_MULTIPLIERS[unit];
     setLoading(true);
     try {
-      await onConfirm(durationMs);
+      await onConfirm(durationMs, reason.trim() || undefined);
       onOpenChange(false);
-      setDuration("1");
-      setUnit("days");
     } finally {
       setLoading(false);
     }
@@ -110,6 +121,19 @@ export function SuspendDialog({
           {formatPreview() && (
             <div className="text-sm text-muted-foreground">
               <span className="font-medium">Expires:</span> {formatPreview()}
+            </div>
+          )}
+
+          {showReasonInput && (
+            <div className="space-y-2">
+              <Label htmlFor="suspend-reason">Reason (optional)</Label>
+              <Textarea
+                id="suspend-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Enter a reason for the suspension..."
+                className="min-h-[80px]"
+              />
             </div>
           )}
 

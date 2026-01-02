@@ -29,9 +29,16 @@ import { AuditLogPanel } from "./audit-log-panel";
 import { SubGroupsPanel } from "./sub-groups-panel";
 import { AwardsPanel } from "./awards-panel";
 import { GroupAccessPanel } from "./group-access-panel";
+import { GroupSettingsPanel } from "./group-settings-panel";
 import { UserProfileDialog } from "./user-profile-dialog";
 import { ConfirmDialog } from "./confirm-dialog";
 import { SuspendDialog } from "./suspend-dialog";
+
+interface GroupSettings {
+  requireKickReason: boolean;
+  requireSuspendReason: boolean;
+  requireRoleChangeReason: boolean;
+}
 
 interface SubGroup {
   id: string;
@@ -137,6 +144,13 @@ export function GroupManagementDialog({
   const [suspensions, setSuspensions] = useState<Suspension[]>([]);
   const [suspendTarget, setSuspendTarget] = useState<{ userId: number; username: string; roleId: number; roleName: string } | null>(null);
   const [roleChangeConfirm, setRoleChangeConfirm] = useState<{ userId: number; username: string; newRoleId: string } | null>(null);
+  const [promotionConfirm, setPromotionConfirm] = useState<{ 
+    userId: number; 
+    username: string; 
+    currentRoleName: string; 
+    newRoleName: string; 
+    newRoleId: number;
+  } | null>(null);
   const [demotionConfirm, setDemotionConfirm] = useState<{ 
     userId: number; 
     username: string; 
@@ -166,6 +180,11 @@ export function GroupManagementDialog({
   });
   const [isFullAccess, setIsFullAccess] = useState(true);
   const [userRank, setUserRank] = useState<number>(255); // Default to max rank, will be updated
+  const [groupSettings, setGroupSettings] = useState<GroupSettings>({
+    requireKickReason: false,
+    requireSuspendReason: false,
+    requireRoleChangeReason: false,
+  });
 
   // Fetch user permissions for this group
   useEffect(() => {
@@ -343,13 +362,44 @@ export function GroupManagementDialog({
     );
   }, [members, searchQuery]);
 
-  const handleRoleChange = async (userId: number, roleId: string, skipSuspensionCheck = false) => {
+  const handleRoleChange = async (userId: number, roleId: string, skipSuspensionCheck = false, reason?: string) => {
     // Check if user is suspended and show confirmation
     const suspension = getUserSuspension(userId);
     if (suspension && !skipSuspensionCheck) {
       const member = members.find((m) => m.user.userId === userId);
       setRoleChangeConfirm({ userId, username: member?.user.username || "", newRoleId: roleId });
       return;
+    }
+
+    // Check if we need to show promotion/demotion confirmation for reason
+    const member = members.find((m) => m.user.userId === userId);
+    const currentRole = member?.role;
+    const newRole = roles.find(r => r.id === parseInt(roleId));
+    
+    if (groupSettings.requireRoleChangeReason && !reason && currentRole && newRole) {
+      // This is a promotion (new rank > current rank)
+      if (newRole.rank > currentRole.rank) {
+        setPromotionConfirm({
+          userId,
+          username: member?.user.username || "",
+          currentRoleName: currentRole.name,
+          newRoleName: newRole.name,
+          newRoleId: parseInt(roleId),
+        });
+        return;
+      }
+      // This is a demotion (new rank < current rank)
+      if (newRole.rank < currentRole.rank) {
+        setDemotionConfirm({
+          userId,
+          username: member?.user.username || "",
+          currentRoleName: currentRole.name,
+          newRoleName: newRole.name,
+          newRoleId: parseInt(roleId),
+          newPoints: 0, // Not used for manual demotions
+        });
+        return;
+      }
     }
 
     setActionLoading(userId);
@@ -362,14 +412,14 @@ export function GroupManagementDialog({
 
       if (response.ok) {
         // Get the role name for logging
-        const newRole = roles.find(r => r.id === parseInt(roleId));
-        const member = members.find(m => m.user.userId === userId);
-        const username = member?.user.username || "Unknown";
+        const roleForLog = roles.find(r => r.id === parseInt(roleId));
+        const memberForLog = members.find(m => m.user.userId === userId);
+        const username = memberForLog?.user.username || "Unknown";
 
-        // Log the role change
+        // Log the role change with reason
         await logAuditEvent("role_change", 
           { userId, username },
-          { newRoleId: parseInt(roleId), newRoleName: newRole?.name || "Unknown" }
+          { newRoleId: parseInt(roleId), newRoleName: roleForLog?.name || "Unknown", reason }
         );
 
         // If user was suspended, remove the suspension
@@ -423,7 +473,7 @@ export function GroupManagementDialog({
     return `${minutes}m`;
   };
 
-  const handleSuspend = async (userId: number, username: string, roleId: number, roleName: string, durationMs: number) => {
+  const handleSuspend = async (userId: number, username: string, roleId: number, roleName: string, durationMs: number, reason?: string) => {
     if (!suspendedRole) return;
 
     setActionLoading(userId);
@@ -451,6 +501,7 @@ export function GroupManagementDialog({
           previousRoleId: roleId,
           previousRoleName: roleName,
           durationMs,
+          reason,
         }),
       });
 
@@ -466,7 +517,7 @@ export function GroupManagementDialog({
         // Log the suspension
         await logAuditEvent("user_suspend", 
           { userId, username },
-          { duration: durationStr, previousRole: roleName }
+          { duration: durationStr, previousRole: roleName, reason }
         );
 
         toast.success(`${username} has been suspended`);
@@ -625,7 +676,51 @@ export function GroupManagementDialog({
     }
   };
 
-  const applyDemotion = async () => {
+  const applyPromotion = async (reason?: string) => {
+    if (!promotionConfirm) return;
+
+    const { userId, username, newRoleId, newRoleName } = promotionConfirm;
+    setPromotionConfirm(null);
+
+    try {
+      const response = await fetch(`/api/groups/${group.id}/members/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roleId: newRoleId }),
+      });
+
+      if (response.ok) {
+        // Log the role change with reason
+        await logAuditEvent("role_change", 
+          { userId, username },
+          { newRoleId, newRoleName, reason }
+        );
+        
+        // If user was suspended, remove the suspension
+        const suspension = getUserSuspension(userId);
+        if (suspension) {
+          await fetch(`/api/groups/${group.id}/automation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "unsuspendUser",
+              userId,
+            }),
+          }).then(res => res.json()).then(data => {
+            setSuspensions(data.suspensions || []);
+          });
+        }
+        
+        toast.success(`${username} has been promoted to ${newRoleName}!`);
+        fetchMembers();
+      }
+    } catch (error) {
+      console.error("Error applying promotion:", error);
+      toast.error("Failed to apply promotion");
+    }
+  };
+
+  const applyDemotion = async (reason?: string) => {
     if (!demotionConfirm) return;
 
     const { userId, username, newRoleId, newRoleName } = demotionConfirm;
@@ -639,11 +734,27 @@ export function GroupManagementDialog({
       });
 
       if (response.ok) {
-        // Log the role change
+        // Log the role change with reason
         await logAuditEvent("role_change", 
           { userId, username },
-          { newRoleId, newRoleName }
+          { newRoleId, newRoleName, reason }
         );
+        
+        // If user was suspended, remove the suspension
+        const suspension = getUserSuspension(userId);
+        if (suspension) {
+          await fetch(`/api/groups/${group.id}/automation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "unsuspendUser",
+              userId,
+            }),
+          }).then(res => res.json()).then(data => {
+            setSuspensions(data.suspensions || []);
+          });
+        }
+        
         toast.success(`${username}'s role updated to ${newRoleName}!`);
         fetchMembers();
       }
@@ -690,7 +801,7 @@ export function GroupManagementDialog({
     }
   };
 
-  const handleKick = async () => {
+  const handleKick = async (reason?: string) => {
     if (!kickConfirm) return;
     
     const { userId, username } = kickConfirm;
@@ -702,8 +813,8 @@ export function GroupManagementDialog({
       });
 
       if (response.ok) {
-        // Log the kick
-        await logAuditEvent("user_kick", { userId, username }, {});
+        // Log the kick with reason
+        await logAuditEvent("user_kick", { userId, username }, { reason });
 
         toast.success(`${username} has been kicked from the group`);
         // Remove from members list
@@ -761,7 +872,7 @@ export function GroupManagementDialog({
             className={`flex flex-col min-w-0 space-y-4 transition-all duration-300 ease-in-out ${
               activeTab === "subgroups" || activeTab === "access"
                 ? "w-0 opacity-0 overflow-hidden" 
-                : "flex-1 opacity-100"
+                : "w-[750px] shrink-0 opacity-100"
             }`}
           >
             {/* Search */}
@@ -996,7 +1107,7 @@ export function GroupManagementDialog({
           {/* Right Panel - Automation, Sub-Groups, Access & Audit Log */}
           <div 
             className={`shrink-0 border-l pl-4 flex flex-col min-h-0 transition-all duration-300 ease-in-out ${
-              activeTab === "subgroups" || activeTab === "access" ? "flex-1" : "w-[450px]"
+              activeTab === "subgroups" || activeTab === "access" ? "flex-1" : "w-[520px]"
             }`}
           >
             <Tabs 
@@ -1005,35 +1116,41 @@ export function GroupManagementDialog({
               onValueChange={setActiveTab}
               className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="grid w-full grid-cols-5 mb-4">
+              <TabsList className="w-full flex gap-0.5 mb-4">
                 {userPermissions.canManageAutomation && (
-                  <TabsTrigger value="automation" className="flex items-center gap-1 text-xs">
+                  <TabsTrigger value="automation" className="flex items-center gap-1 text-xs px-2">
                     <Settings className="h-3 w-3" />
-                    Automation
+                    Auto
                   </TabsTrigger>
                 )}
                 {userPermissions.canManageDivisions && (
-                  <TabsTrigger value="subgroups" className="flex items-center gap-1 text-xs">
+                  <TabsTrigger value="subgroups" className="flex items-center gap-1 text-xs px-2">
                     <FolderTree className="h-3 w-3" />
-                    Sub-Groups
+                    Subs
                   </TabsTrigger>
                 )}
                 {userPermissions.canManageAwards && (
-                  <TabsTrigger value="awards" className="flex items-center gap-1 text-xs">
+                  <TabsTrigger value="awards" className="flex items-center gap-1 text-xs px-2">
                     <Award className="h-3 w-3" />
                     Awards
                   </TabsTrigger>
                 )}
                 {isFullAccess && (
-                  <TabsTrigger value="access" className="flex items-center gap-1 text-xs">
+                  <TabsTrigger value="access" className="flex items-center gap-1 text-xs px-2">
                     <KeyRound className="h-3 w-3" />
                     Access
                   </TabsTrigger>
                 )}
+                {isFullAccess && (
+                  <TabsTrigger value="settings" className="flex items-center gap-1 text-xs px-2">
+                    <Settings className="h-3 w-3" />
+                    Settings
+                  </TabsTrigger>
+                )}
                 {userPermissions.canViewAuditLog && (
-                  <TabsTrigger value="audit" className="flex items-center gap-1 text-xs">
+                  <TabsTrigger value="audit" className="flex items-center gap-1 text-xs px-2">
                     <ClipboardList className="h-3 w-3" />
-                    Audit Log
+                    Logs
                   </TabsTrigger>
                 )}
               </TabsList>
@@ -1079,6 +1196,13 @@ export function GroupManagementDialog({
                 />
               </TabsContent>
 
+              <TabsContent value="settings" className="flex-1 min-h-0 mt-0">
+                <GroupSettingsPanel
+                  groupId={group.id}
+                  onSettingsChange={setGroupSettings}
+                />
+              </TabsContent>
+
               <TabsContent value="audit" className="flex-1 min-h-0 mt-0">
                 <AuditLogPanel groupId={group.id.toString()} />
               </TabsContent>
@@ -1106,20 +1230,25 @@ export function GroupManagementDialog({
         cancelText="Cancel"
         variant="destructive"
         onConfirm={handleKick}
+        showReasonInput={groupSettings.requireKickReason}
+        reasonLabel="Kick Reason"
+        reasonPlaceholder="Enter a reason for kicking this member..."
       />
 
       <SuspendDialog
         open={!!suspendTarget}
         onOpenChange={(open) => !open && setSuspendTarget(null)}
         username={suspendTarget?.username || ""}
-        onConfirm={async (durationMs) => {
+        showReasonInput={groupSettings.requireSuspendReason}
+        onConfirm={async (durationMs, reason) => {
           if (suspendTarget) {
             await handleSuspend(
               suspendTarget.userId,
               suspendTarget.username,
               suspendTarget.roleId,
               suspendTarget.roleName,
-              durationMs
+              durationMs,
+              reason
             );
           }
         }}
@@ -1142,6 +1271,20 @@ export function GroupManagementDialog({
       />
 
       <ConfirmDialog
+        open={!!promotionConfirm}
+        onOpenChange={(open) => !open && setPromotionConfirm(null)}
+        title="Confirm Promotion"
+        description={`${promotionConfirm?.username} will be promoted from ${promotionConfirm?.currentRoleName} to ${promotionConfirm?.newRoleName}.`}
+        confirmText="Promote"
+        cancelText="Cancel"
+        variant="default"
+        onConfirm={applyPromotion}
+        showReasonInput={groupSettings.requireRoleChangeReason}
+        reasonLabel="Promotion Reason"
+        reasonPlaceholder="Enter a reason for this promotion..."
+      />
+
+      <ConfirmDialog
         open={!!demotionConfirm}
         onOpenChange={(open) => !open && setDemotionConfirm(null)}
         title="Confirm Demotion"
@@ -1150,6 +1293,9 @@ export function GroupManagementDialog({
         cancelText="Keep Current Rank"
         variant="destructive"
         onConfirm={applyDemotion}
+        showReasonInput={groupSettings.requireRoleChangeReason}
+        reasonLabel="Demotion Reason"
+        reasonPlaceholder="Enter a reason for this demotion..."
       />
     </Dialog>
   );

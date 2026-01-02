@@ -118,6 +118,10 @@ function getActionDescription(entry: AuditLogEntry): string {
   }
 }
 
+function getReason(entry: AuditLogEntry): string | undefined {
+  return entry.details.reason as string | undefined;
+}
+
 export function AuditLogPanel({ groupId }: AuditLogPanelProps) {
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -287,6 +291,11 @@ export function AuditLogPanel({ groupId }: AuditLogPanelProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">{getActionDescription(entry)}</p>
+                      {getReason(entry) && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">
+                          Reason: {getReason(entry)}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatTimestamp(entry.timestamp)}
                       </p>

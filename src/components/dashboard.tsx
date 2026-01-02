@@ -24,6 +24,18 @@ interface UpdateEntry {
 
 const SITE_UPDATES: UpdateEntry[] = [
   {
+    version: "1.2.02",
+    date: "2026-01-02",
+    title: "Action Reason Prompts",
+    type: "feature",
+    changes: [
+      "Group admins can enable reason prompts for kicks, suspensions, and role changes",
+      "Reasons are displayed in audit logs and Discord webhooks",
+      "New Settings tab in group management dialog",
+      "Active users tracking on admin page",
+    ],
+  },
+  {
     version: "1.2.01",
     date: "2026-01-02",
     title: "API Documentation Update",

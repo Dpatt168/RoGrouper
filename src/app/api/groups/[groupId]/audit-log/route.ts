@@ -52,6 +52,7 @@ async function saveAuditLogData(groupId: string, data: AuditLogData) {
 function getActionDescription(entry: AuditLogEntry): string {
   const performer = entry.performedBy.username;
   const target = entry.targetUser?.username || "Unknown";
+  const reason = entry.details.reason as string | undefined;
 
   switch (entry.action) {
     case "role_change":
@@ -61,11 +62,11 @@ function getActionDescription(entry: AuditLogEntry): string {
     case "points_remove":
       return `${performer} removed ${entry.details.points} point(s) from ${target}`;
     case "user_suspend":
-      return `${performer} suspended ${target} for ${entry.details.duration}`;
+      return `${performer} suspended ${target} for ${entry.details.duration}${reason ? ` - Reason: ${reason}` : ""}`;
     case "user_unsuspend":
       return `${performer} lifted ${target}'s suspension`;
     case "user_kick":
-      return `${performer} kicked ${target} from the group`;
+      return `${performer} kicked ${target} from the group${reason ? ` - Reason: ${reason}` : ""}`;
     case "rule_add":
       return `${performer} added automation rule: ${entry.details.points} points → ${entry.details.roleName}`;
     case "rule_delete":
@@ -116,8 +117,16 @@ async function sendDiscordWebhook(webhookUrl: string, entry: AuditLogEntry, grou
   try {
     const description = getActionDescription(entry);
     const color = getActionColor(entry.action);
+    const reason = entry.details.reason as string | undefined;
 
-    const embed = {
+    const embed: {
+      title: string;
+      description: string;
+      color: number;
+      fields: Array<{ name: string; value: string; inline: boolean }>;
+      timestamp: string;
+      footer: { text: string };
+    } = {
       title: "📋 Audit Log",
       description,
       color,
@@ -144,6 +153,15 @@ async function sendDiscordWebhook(webhookUrl: string, entry: AuditLogEntry, grou
         name: "Target User",
         value: entry.targetUser.username,
         inline: true,
+      });
+    }
+
+    // Add reason field if provided
+    if (reason) {
+      embed.fields.push({
+        name: "Reason",
+        value: reason,
+        inline: false,
       });
     }
 
