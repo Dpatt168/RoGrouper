@@ -427,7 +427,7 @@ export function SubGroupsPanel({
       <div className="flex-1 flex gap-4 min-h-0">
         {/* Sub-groups list */}
         <div className="w-1/3 flex flex-col min-h-0">
-          <ScrollArea className="flex-1 border rounded-lg">
+          <ScrollArea className="flex-1 h-0 border rounded-lg">
             <div className="p-2 space-y-1">
               {subGroups.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
@@ -461,9 +461,9 @@ export function SubGroupsPanel({
         </div>
 
         {/* Sub-group details */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {selectedSubGroup ? (
-            <>
+            <div className="flex flex-col h-full min-h-0">
               {/* Sub-group header */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -601,7 +601,7 @@ export function SubGroupsPanel({
                     Assign
                   </Button>
                 </div>
-                <ScrollArea className="flex-1 border rounded-lg">
+                <ScrollArea className="flex-1 h-0 border rounded-lg">
                   <div className="p-2 space-y-1">
                     {getSubGroupMembers(selectedSubGroup.id).length === 0 ? (
                       <p className="text-xs text-muted-foreground text-center py-4">
@@ -633,7 +633,7 @@ export function SubGroupsPanel({
                   </div>
                 </ScrollArea>
               </div>
-            </>
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <p className="text-sm">Select a sub-group to view details</p>
