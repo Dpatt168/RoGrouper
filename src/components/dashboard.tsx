@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Users, Building2, Sparkles, Bug, Wrench, Zap, Clock, Award, FolderTree, Shield, Bot } from "lucide-react";
+import { useActivityHeartbeat } from "@/hooks/use-activity-heartbeat";
 
 interface UpdateEntry {
   version: string;
@@ -383,6 +384,9 @@ export function Dashboard() {
   const { data: session, status } = useSession();
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Track user activity for admin panel
+  useActivityHeartbeat();
 
   // Show loading state
   if (status === "loading") {

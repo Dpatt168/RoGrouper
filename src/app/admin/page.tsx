@@ -51,6 +51,15 @@ interface SiteAdminWithInfo extends SiteAdmin {
   avatarUrl?: string;
 }
 
+interface ActiveUser {
+  robloxId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  lastSeen: number;
+  currentPage?: string;
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -63,6 +72,8 @@ export default function AdminPage() {
   const [adminSearchResults, setAdminSearchResults] = useState<Array<{ id: number; name: string; displayName: string }>>([]);
   const [searchingAdmin, setSearchingAdmin] = useState(false);
   const [adminActionLoading, setAdminActionLoading] = useState<string | null>(null);
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [activeUsersLoading, setActiveUsersLoading] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -76,6 +87,21 @@ export default function AdminPage() {
       console.error("Error fetching requests:", error);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const fetchActiveUsers = useCallback(async () => {
+    try {
+      setActiveUsersLoading(true);
+      const response = await fetch("/api/admin/active-users");
+      if (response.ok) {
+        const data = await response.json();
+        setActiveUsers(data.activeUsers || []);
+      }
+    } catch (error) {
+      console.error("Error fetching active users:", error);
+    } finally {
+      setActiveUsersLoading(false);
     }
   }, []);
 
@@ -205,6 +231,7 @@ export default function AdminPage() {
           if (data.isAdmin) {
             fetchRequests();
             fetchSiteAdmins();
+            fetchActiveUsers();
           }
         }
       } catch (error) {
@@ -256,6 +283,16 @@ export default function AdminPage() {
 
   function formatDate(timestamp: number) {
     return new Date(timestamp).toLocaleString();
+  }
+
+  function formatTimeSince(timestamp: number) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return "Just now";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
   }
 
   if (status === "loading" || (status === "authenticated" && loading)) {
@@ -568,6 +605,78 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Active Users */}
+      <Card className="mt-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-green-500" />
+                Active Users
+                <Badge variant="secondary" className="ml-2">
+                  {activeUsers.length} online
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Users currently browsing the site (updates every 5 minutes)
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchActiveUsers}
+              disabled={activeUsersLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${activeUsersLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {activeUsersLoading && activeUsers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+              <p>Loading active users...</p>
+            </div>
+          ) : activeUsers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No active users at the moment</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activeUsers.map((user) => (
+                <div
+                  key={user.robloxId}
+                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={user.avatarUrl} alt={user.username} />
+                        <AvatarFallback>{user.username[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 rounded-full border-2 border-background" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{user.displayName}</p>
+                      <p className="text-xs text-muted-foreground">@{user.username}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="outline" className="text-xs">
+                      {user.currentPage || "Dashboard"}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatTimeSince(user.lastSeen)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
