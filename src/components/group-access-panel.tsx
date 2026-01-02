@@ -409,32 +409,37 @@ export function GroupAccessPanel({ groupId, availableRoles }: GroupAccessPanelPr
   const canManageAdmins = permissions.isOwner || permissions.isSiteAdmin;
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-6 p-1">
-        {/* Info Banner */}
-        <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-          <Info className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-          <div className="text-sm">
-            <p className="font-medium text-blue-500 mb-1">About Access Control</p>
-            <p className="text-muted-foreground">
-              Users with allowed roles or who are individually added can access this group&apos;s management page.
-              {canManageAdmins && " You can also designate admins who can manage these access settings."}
-            </p>
-          </div>
+    <div className="flex flex-col h-full">
+      {/* Info Banner */}
+      <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg mb-4">
+        <Info className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+        <div className="text-sm">
+          <p className="font-medium text-blue-500 mb-1">About Access Control</p>
+          <p className="text-muted-foreground">
+            Users with allowed roles or who are individually added can access this group&apos;s management page.
+            {canManageAdmins && " You can also designate admins who can manage these access settings."}
+          </p>
         </div>
+      </div>
 
-        {/* Allowed Roles Section */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Allowed Roles
-            </CardTitle>
-            <CardDescription>
-              Members with these roles can access the group management page
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+      {/* Two Column Layout */}
+      <div className="flex-1 flex gap-4 min-h-0">
+        {/* Left Column - Access Settings */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <ScrollArea className="flex-1 h-0 border rounded-lg p-4">
+            <div className="space-y-6">
+              {/* Allowed Roles Section */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Allowed Roles
+                  </CardTitle>
+                  <CardDescription>
+                    Members with these roles can access the group management page
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
             {/* Add Role */}
             <div className="flex gap-2">
               <Select value={selectedRoleForAccess} onValueChange={setSelectedRoleForAccess}>
@@ -574,22 +579,24 @@ export function GroupAccessPanel({ groupId, availableRoles }: GroupAccessPanelPr
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+            </div>
+          </ScrollArea>
+        </div>
 
-        <Separator />
-
-        {/* Admin Section - Only visible to owner/site admin */}
+        {/* Right Column - Admin Settings (Only visible to owner/site admin) */}
         {canManageAdmins && (
-          <>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
               <Crown className="h-4 w-4" />
               <span>Admin Settings (Owner/Site Admin only)</span>
             </div>
-
-            {/* Admin Roles Section */}
-            <Card>
-              <CardHeader className="pb-3">
+            <ScrollArea className="flex-1 h-0 border rounded-lg p-4">
+              <div className="space-y-6">
+                {/* Admin Roles Section */}
+                <Card>
+                  <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4" />
                   Admin Roles
@@ -764,11 +771,13 @@ export function GroupAccessPanel({ groupId, availableRoles }: GroupAccessPanelPr
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </>
+                </CardContent>
+              </Card>
+            </div>
+          </ScrollArea>
+        </div>
         )}
       </div>
-    </ScrollArea>
+    </div>
   );
 }

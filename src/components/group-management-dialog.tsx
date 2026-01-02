@@ -741,10 +741,10 @@ export function GroupManagementDialog({
         </DialogHeader>
 
         <div className="flex-1 flex gap-6 min-h-0 overflow-hidden">
-          {/* Left Panel - Members (hidden when sub-groups tab is active) */}
+          {/* Left Panel - Members (hidden when sub-groups or access tab is active) */}
           <div 
             className={`flex flex-col min-w-0 space-y-4 transition-all duration-300 ease-in-out ${
-              activeTab === "subgroups" 
+              activeTab === "subgroups" || activeTab === "access"
                 ? "w-0 opacity-0 overflow-hidden" 
                 : "flex-1 opacity-100"
             }`}
@@ -981,7 +981,7 @@ export function GroupManagementDialog({
           {/* Right Panel - Automation, Sub-Groups & Audit Log */}
           <div 
             className={`shrink-0 border-l pl-4 flex flex-col min-h-0 transition-all duration-300 ease-in-out ${
-              activeTab === "subgroups" ? "flex-1" : "w-[450px]"
+              activeTab === "subgroups" || activeTab === "access" ? "flex-1" : "w-[450px]"
             }`}
           >
             <Tabs 

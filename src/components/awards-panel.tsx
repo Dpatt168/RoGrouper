@@ -261,7 +261,8 @@ export function AwardsPanel({ scopeType, scopeId, scopeName, members = [] }: Awa
   }
 
   return (
-    <div className="space-y-4">
+    <ScrollArea className="h-full max-h-[calc(100vh-200px)]">
+    <div className="space-y-4 pr-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -509,5 +510,6 @@ export function AwardsPanel({ scopeType, scopeId, scopeName, members = [] }: Awa
         </DialogContent>
       </Dialog>
     </div>
+    </ScrollArea>
   );
 }
